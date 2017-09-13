@@ -1,9 +1,9 @@
 /*************************************************************************/
-/*  scene_main_loop.h                                                    */
+/*  scene_tree.h                                                         */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -111,9 +111,6 @@ private:
 	bool quit_on_go_back;
 	uint32_t last_id;
 
-#ifdef TOOLS_ENABLED
-	bool editor_hint;
-#endif
 #ifdef DEBUG_ENABLED
 	bool debug_collisions_hint;
 	bool debug_navigation_hint;
@@ -201,6 +198,8 @@ private:
 	void _connected_to_server();
 	void _connection_failed();
 	void _server_disconnected();
+
+	int rpc_sender_id;
 
 	//path sent caches
 	struct PathSentCache {
@@ -363,14 +362,8 @@ public:
 	_FORCE_INLINE_ float get_idle_process_time() const { return idle_process_time; }
 
 #ifdef TOOLS_ENABLED
-	void set_editor_hint(bool p_enabled);
-
-	bool is_editor_hint() const;
 	bool is_node_being_edited(const Node *p_node) const;
 #else
-	void set_editor_hint(bool p_enabled) {}
-
-	bool is_editor_hint() const { return false; }
 	bool is_node_being_edited(const Node *p_node) const { return false; }
 #endif
 
@@ -454,6 +447,7 @@ public:
 	bool has_network_peer() const;
 	int get_network_unique_id() const;
 	Vector<int> get_network_connected_peers() const;
+	int get_rpc_sender_id() const;
 
 	void set_refuse_new_network_connections(bool p_refuse);
 	bool is_refusing_new_network_connections() const;
@@ -465,5 +459,6 @@ public:
 
 VARIANT_ENUM_CAST(SceneTree::StretchMode);
 VARIANT_ENUM_CAST(SceneTree::StretchAspect);
+VARIANT_ENUM_CAST(SceneTree::CallGroupFlags);
 
 #endif

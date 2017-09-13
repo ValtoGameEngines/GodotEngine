@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -56,11 +56,10 @@ void ColorPicker::_notification(int p_what) {
 		} break;
 
 		case NOTIFICATION_VISIBILITY_CHANGED: {
-			if (get_parent()) {
-				Popup *p = get_parent()->cast_to<Popup>();
-				if (p)
-					p->set_size(Size2(get_combined_minimum_size().width + get_constant("margin") * 2, get_combined_minimum_size().height + get_constant("margin") * 2));
-			}
+
+			Popup *p = Object::cast_to<Popup>(get_parent());
+			if (p)
+				p->set_size(Size2(get_combined_minimum_size().width + get_constant("margin") * 2, get_combined_minimum_size().height + get_constant("margin") * 2));
 		} break;
 
 		case MainLoop::NOTIFICATION_WM_QUIT_REQUEST: {
@@ -204,7 +203,7 @@ void ColorPicker::_update_presets() {
 }
 
 void ColorPicker::_text_type_toggled() {
-	if (!get_tree()->is_editor_hint())
+	if (!Engine::get_singleton()->is_editor_hint())
 		return;
 	text_is_constructor = !text_is_constructor;
 	if (text_is_constructor) {
@@ -314,9 +313,9 @@ void ColorPicker::_hsv_draw(int p_which, Control *c) {
 	}
 }
 
-void ColorPicker::_uv_input(const Ref<InputEvent> &ev) {
+void ColorPicker::_uv_input(const Ref<InputEvent> &p_event) {
 
-	Ref<InputEventMouseButton> bev = ev;
+	Ref<InputEventMouseButton> bev = p_event;
 
 	if (bev.is_valid()) {
 		if (bev->is_pressed() && bev->get_button_index() == BUTTON_LEFT) {
@@ -335,7 +334,7 @@ void ColorPicker::_uv_input(const Ref<InputEvent> &ev) {
 		}
 	}
 
-	Ref<InputEventMouseMotion> mev = ev;
+	Ref<InputEventMouseMotion> mev = p_event;
 
 	if (mev.is_valid()) {
 		if (!changing_color)
@@ -352,9 +351,9 @@ void ColorPicker::_uv_input(const Ref<InputEvent> &ev) {
 	}
 }
 
-void ColorPicker::_w_input(const Ref<InputEvent> &ev) {
+void ColorPicker::_w_input(const Ref<InputEvent> &p_event) {
 
-	Ref<InputEventMouseButton> bev = ev;
+	Ref<InputEventMouseButton> bev = p_event;
 
 	if (bev.is_valid()) {
 
@@ -372,7 +371,7 @@ void ColorPicker::_w_input(const Ref<InputEvent> &ev) {
 		emit_signal("color_changed", color);
 	}
 
-	Ref<InputEventMouseMotion> mev = ev;
+	Ref<InputEventMouseMotion> mev = p_event;
 
 	if (mev.is_valid()) {
 
@@ -388,9 +387,9 @@ void ColorPicker::_w_input(const Ref<InputEvent> &ev) {
 	}
 }
 
-void ColorPicker::_preset_input(const Ref<InputEvent> &ev) {
+void ColorPicker::_preset_input(const Ref<InputEvent> &p_event) {
 
-	Ref<InputEventMouseButton> bev = ev;
+	Ref<InputEventMouseButton> bev = p_event;
 
 	if (bev.is_valid()) {
 
@@ -407,7 +406,7 @@ void ColorPicker::_preset_input(const Ref<InputEvent> &ev) {
 		emit_signal("color_changed", color);
 	}
 
-	Ref<InputEventMouseMotion> mev = ev;
+	Ref<InputEventMouseMotion> mev = p_event;
 
 	if (mev.is_valid()) {
 
@@ -423,9 +422,9 @@ void ColorPicker::_preset_input(const Ref<InputEvent> &ev) {
 	}
 }
 
-void ColorPicker::_screen_input(const Ref<InputEvent> &ev) {
+void ColorPicker::_screen_input(const Ref<InputEvent> &p_event) {
 
-	Ref<InputEventMouseButton> bev = ev;
+	Ref<InputEventMouseButton> bev = p_event;
 
 	if (bev.is_valid()) {
 
@@ -435,7 +434,7 @@ void ColorPicker::_screen_input(const Ref<InputEvent> &ev) {
 		}
 	}
 
-	Ref<InputEventMouseMotion> mev = ev;
+	Ref<InputEventMouseMotion> mev = p_event;
 
 	if (mev.is_valid()) {
 		Viewport *r = get_tree()->get_root();

@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -30,17 +30,15 @@
 #include "broad_phase_basic.h"
 #include "list.h"
 #include "print_string.h"
-BroadPhaseSW::ID BroadPhaseBasic::create(CollisionObjectSW *p_object_, int p_subindex) {
 
-	if (p_object_ == NULL) {
+BroadPhaseSW::ID BroadPhaseBasic::create(CollisionObjectSW *p_object, int p_subindex) {
 
-		ERR_FAIL_COND_V(p_object_ == NULL, 0);
-	}
+	ERR_FAIL_COND_V(p_object == NULL, 0);
 
 	current++;
 
 	Element e;
-	e.owner = p_object_;
+	e.owner = p_object;
 	e._static = false;
 	e.subindex = p_subindex;
 
@@ -169,10 +167,10 @@ void BroadPhaseBasic::set_pair_callback(PairCallback p_pair_callback, void *p_us
 	pair_userdata = p_userdata;
 	pair_callback = p_pair_callback;
 }
-void BroadPhaseBasic::set_unpair_callback(UnpairCallback p_pair_callback, void *p_userdata) {
+void BroadPhaseBasic::set_unpair_callback(UnpairCallback p_unpair_callback, void *p_userdata) {
 
 	unpair_userdata = p_userdata;
-	unpair_callback = p_pair_callback;
+	unpair_callback = p_unpair_callback;
 }
 
 void BroadPhaseBasic::update() {

@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -53,9 +53,9 @@ void FileAccessWindows::check_errors() const {
 	}
 }
 
-Error FileAccessWindows::_open(const String &p_filename, int p_mode_flags) {
+Error FileAccessWindows::_open(const String &p_path, int p_mode_flags) {
 
-	String filename = fix_path(p_filename);
+	String filename = fix_path(p_path);
 	if (f)
 		close();
 
@@ -159,7 +159,8 @@ void FileAccessWindows::seek_end(int64_t p_position) {
 size_t FileAccessWindows::get_pos() const {
 
 	size_t aux_position = 0;
-	if (!(aux_position = ftell(f))) {
+	aux_position = ftell(f);
+	if (!aux_position) {
 		check_errors();
 	};
 	return aux_position;

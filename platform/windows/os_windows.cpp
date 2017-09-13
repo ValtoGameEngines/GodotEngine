@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -63,11 +63,10 @@ __attribute__((visibility("default"))) DWORD NvOptimusEnablement = 0x00000001;
 #endif
 }
 
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL 0x020e
+// Workaround mingw-w64 < 4.0 bug
+#ifndef WM_TOUCH
+#define WM_TOUCH 576
 #endif
-
-//#define STDOUT_FILE
 
 extern HINSTANCE godot_hinstance;
 
@@ -164,6 +163,8 @@ const char *OS_Windows::get_audio_driver_name(int p_driver) const {
 }
 
 void OS_Windows::initialize_core() {
+
+	crash_handler.initialize();
 
 	last_button_state = 0;
 
@@ -717,8 +718,7 @@ LRESULT OS_Windows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 		} break;
 		case WM_DROPFILES: {
 
-			HDROP hDropInfo = NULL;
-			hDropInfo = (HDROP)wParam;
+			HDROP hDropInfo = (HDROP)wParam;
 			const int buffsize = 4096;
 			wchar_t buf[buffsize];
 
@@ -889,12 +889,32 @@ static int QueryDpiForMonitor(HMONITOR hmon, _MonitorDpiType dpiType = MDT_Defau
 	return (dpiX + dpiY) / 2;
 }
 
+typedef enum _SHC_PROCESS_DPI_AWARENESS {
+	SHC_PROCESS_DPI_UNAWARE = 0,
+	SHC_PROCESS_SYSTEM_DPI_AWARE = 1,
+	SHC_PROCESS_PER_MONITOR_DPI_AWARE = 2
+} SHC_PROCESS_DPI_AWARENESS;
+
 void OS_Windows::initialize(const VideoMode &p_desired, int p_video_driver, int p_audio_driver) {
 
 	main_loop = NULL;
 	outside = true;
 	window_has_focus = true;
 	WNDCLASSEXW wc;
+
+	if (is_hidpi_allowed()) {
+		HMODULE Shcore = LoadLibraryW(L"Shcore.dll");
+
+		if (Shcore != NULL) {
+			typedef HRESULT(WINAPI * SetProcessDpiAwareness_t)(SHC_PROCESS_DPI_AWARENESS);
+
+			SetProcessDpiAwareness_t SetProcessDpiAwareness = (SetProcessDpiAwareness_t)GetProcAddress(Shcore, "SetProcessDpiAwareness");
+
+			if (SetProcessDpiAwareness) {
+				SetProcessDpiAwareness(SHC_PROCESS_SYSTEM_DPI_AWARE);
+			}
+		}
+	}
 
 	video_mode = p_desired;
 	//printf("**************** desired %s, mode %s\n", p_desired.fullscreen?"true":"false", video_mode.fullscreen?"true":"false");
@@ -998,7 +1018,16 @@ void OS_Windows::initialize(const VideoMode &p_desired, int p_video_driver, int 
 		video_mode.fullscreen = false;
 	} else {
 
-		if (!(hWnd = CreateWindowExW(dwExStyle, L"Engine", L"", dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, (GetSystemMetrics(SM_CXSCREEN) - WindowRect.right) / 2, (GetSystemMetrics(SM_CYSCREEN) - WindowRect.bottom) / 2, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, NULL, NULL, hInstance, NULL))) {
+		hWnd = CreateWindowExW(
+				dwExStyle,
+				L"Engine", L"",
+				dwStyle | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+				(GetSystemMetrics(SM_CXSCREEN) - WindowRect.right) / 2,
+				(GetSystemMetrics(SM_CYSCREEN) - WindowRect.bottom) / 2,
+				WindowRect.right - WindowRect.left,
+				WindowRect.bottom - WindowRect.top,
+				NULL, NULL, hInstance, NULL);
+		if (!hWnd) {
 			MessageBoxW(NULL, L"Window Creation Error.", L"ERROR", MB_OK | MB_ICONEXCLAMATION);
 			return; // Return FALSE
 		}
@@ -1386,7 +1415,7 @@ static BOOL CALLBACK _MonitorEnumProcPos(HMONITOR hMonitor, HDC hdcMonitor, LPRE
 
 Point2 OS_Windows::get_screen_position(int p_screen) const {
 
-	EnumPosData data = { 0, p_screen, Point2() };
+	EnumPosData data = { 0, p_screen == -1 ? get_current_screen() : p_screen, Point2() };
 	EnumDisplayMonitors(NULL, NULL, _MonitorEnumProcPos, (LPARAM)&data);
 	return data.pos;
 }
@@ -1411,7 +1440,7 @@ static BOOL CALLBACK _MonitorEnumProcSize(HMONITOR hMonitor, HDC hdcMonitor, LPR
 
 Size2 OS_Windows::get_screen_size(int p_screen) const {
 
-	EnumSizeData data = { 0, p_screen, Size2() };
+	EnumSizeData data = { 0, p_screen == -1 ? get_current_screen() : p_screen, Size2() };
 	EnumDisplayMonitors(NULL, NULL, _MonitorEnumProcSize, (LPARAM)&data);
 	return data.size;
 }
@@ -1435,7 +1464,7 @@ static BOOL CALLBACK _MonitorEnumProcDpi(HMONITOR hMonitor, HDC hdcMonitor, LPRE
 
 int OS_Windows::get_screen_dpi(int p_screen) const {
 
-	EnumDpiData data = { 0, p_screen, 72 };
+	EnumDpiData data = { 0, p_screen == -1 ? get_current_screen() : p_screen, 72 };
 	EnumDisplayMonitors(NULL, NULL, _MonitorEnumProcDpi, (LPARAM)&data);
 	return data.dpi;
 }
@@ -1629,7 +1658,6 @@ Error OS_Windows::close_dynamic_library(void *p_library_handle) {
 }
 
 Error OS_Windows::get_dynamic_library_symbol_handle(void *p_library_handle, const String p_name, void *&p_symbol_handle, bool p_optional) {
-	char *error;
 	p_symbol_handle = (void *)GetProcAddress((HMODULE)p_library_handle, p_name.utf8().get_data());
 	if (!p_symbol_handle) {
 		if (!p_optional) {
@@ -2342,6 +2370,14 @@ bool OS_Windows::_check_internal_feature_support(const String &p_feature) {
 	return p_feature == "pc" || p_feature == "s3tc";
 }
 
+void OS_Windows::disable_crash_handler() {
+	crash_handler.disable();
+}
+
+bool OS_Windows::is_disable_crash_handler() const {
+	return crash_handler.is_disabled();
+}
+
 OS_Windows::OS_Windows(HINSTANCE _hInstance) {
 
 	key_event_pos = 0;
@@ -2362,6 +2398,9 @@ OS_Windows::OS_Windows(HINSTANCE _hInstance) {
 #endif
 	user_proc = NULL;
 
+#ifdef WASAPI_ENABLED
+	AudioDriverManager::add_driver(&driver_wasapi);
+#endif
 #ifdef RTAUDIO_ENABLED
 	AudioDriverManager::add_driver(&driver_rtaudio);
 #endif

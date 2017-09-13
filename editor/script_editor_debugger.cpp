@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -215,7 +215,7 @@ void ScriptEditorDebugger::_scene_tree_folded(Object *obj) {
 
 		return;
 	}
-	TreeItem *item = obj->cast_to<TreeItem>();
+	TreeItem *item = Object::cast_to<TreeItem>(obj);
 
 	if (!item)
 		return;
@@ -306,8 +306,7 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 		String error = p_data[1];
 		step->set_disabled(!can_continue);
 		next->set_disabled(!can_continue);
-		reason->set_text(error);
-		reason->set_tooltip(error);
+		_set_reason_text(error, MESSAGE_ERROR);
 		breaked = true;
 		dobreak->set_disabled(true);
 		docontinue->set_disabled(false);
@@ -372,7 +371,13 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 			if (has_icon(p_data[i + 2], "EditorIcons"))
 				it->set_icon(0, get_icon(p_data[i + 2], "EditorIcons"));
 			it->set_metadata(0, id);
+
 			if (id == inspected_object_id) {
+				TreeItem *cti = it->get_parent(); //ensure selected is always uncollapsed
+				while (cti) {
+					cti->set_collapsed(false);
+					cti = cti->get_parent();
+				}
 				it->select(0);
 			}
 
@@ -385,6 +390,7 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 					it->set_collapsed(true);
 				}
 			}
+
 			lv[level] = it;
 		}
 		updating_scene_tree = false;
@@ -439,11 +445,8 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 
 		inspected_object->last_edited_id = id;
 
-		if (tabs->get_current_tab() == 2) {
-			inspect_properties->edit(inspected_object);
-		} else {
-			editor->push_item(inspected_object);
-		}
+		tabs->set_current_tab(inspect_info->get_index());
+		inspect_properties->edit(inspected_object);
 
 	} else if (p_msg == "message:video_mem") {
 
@@ -757,6 +760,21 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 	}
 }
 
+void ScriptEditorDebugger::_set_reason_text(const String &p_reason, MessageType p_type) {
+	switch (p_type) {
+		case MESSAGE_ERROR:
+			reason->add_color_override("font_color", get_color("error_color", "Editor"));
+			break;
+		case MESSAGE_WARNING:
+			reason->add_color_override("font_color", get_color("warning_color", "Editor"));
+			break;
+		default:
+			reason->add_color_override("font_color", get_color("success_color", "Editor"));
+	}
+	reason->set_text(p_reason);
+	reason->set_tooltip(p_reason);
+}
+
 void ScriptEditorDebugger::_performance_select(Object *, int, bool) {
 
 	perf_draw->update();
@@ -771,14 +789,17 @@ void ScriptEditorDebugger::_performance_draw() {
 			which.push_back(i);
 	}
 
-	if (which.empty())
-		return;
-
-	Ref<StyleBox> graph_sb = get_stylebox("normal", "TextEdit");
 	Ref<Font> graph_font = get_font("font", "TextEdit");
 
+	if (which.empty()) {
+		perf_draw->draw_string(graph_font, Point2(0, graph_font->get_ascent()), TTR("Pick one or more items from the list to display the graph."), get_color("font_color", "Label"), perf_draw->get_size().x);
+		return;
+	}
+
+	Ref<StyleBox> graph_sb = get_stylebox("normal", "TextEdit");
+
 	int cols = Math::ceil(Math::sqrt((float)which.size()));
-	int rows = (which.size() + 1) / cols;
+	int rows = Math::ceil((float)which.size() / cols);
 	if (which.size() == 1)
 		rows = 1;
 
@@ -917,8 +938,7 @@ void ScriptEditorDebugger::_notification(int p_what) {
 					dobreak->set_disabled(false);
 					tabs->set_current_tab(0);
 
-					reason->set_text(TTR("Child Process Connected"));
-					reason->set_tooltip(TTR("Child Process Connected"));
+					_set_reason_text(TTR("Child Process Connected"), MESSAGE_SUCCESS);
 					profiler->clear();
 
 					inspect_scene_tree->clear();
@@ -1086,9 +1106,6 @@ void ScriptEditorDebugger::stop() {
 	EditorNode::get_singleton()->get_pause_button()->set_pressed(false);
 	EditorNode::get_singleton()->get_pause_button()->set_disabled(true);
 
-	//avoid confusion when stopped debugging but an object is still edited
-	EditorNode::get_singleton()->push_item(NULL);
-
 	if (hide_on_stop) {
 		if (is_visible_in_tree())
 			EditorNode::get_singleton()->hide_bottom_panel();
@@ -1207,7 +1224,7 @@ void ScriptEditorDebugger::_method_changed(Object *p_base, const StringName &p_n
 	if (!p_base || !live_debug || !connection.is_valid() || !editor->get_edited_scene())
 		return;
 
-	Node *node = p_base->cast_to<Node>();
+	Node *node = Object::cast_to<Node>(p_base);
 
 	VARIANT_ARGPTRS
 
@@ -1235,7 +1252,7 @@ void ScriptEditorDebugger::_method_changed(Object *p_base, const StringName &p_n
 		return;
 	}
 
-	Resource *res = p_base->cast_to<Resource>();
+	Resource *res = Object::cast_to<Resource>(p_base);
 
 	if (res && res->get_path() != String()) {
 
@@ -1263,7 +1280,7 @@ void ScriptEditorDebugger::_property_changed(Object *p_base, const StringName &p
 	if (!p_base || !live_debug || !connection.is_valid() || !editor->get_edited_scene())
 		return;
 
-	Node *node = p_base->cast_to<Node>();
+	Node *node = Object::cast_to<Node>(p_base);
 
 	if (node) {
 
@@ -1294,7 +1311,7 @@ void ScriptEditorDebugger::_property_changed(Object *p_base, const StringName &p
 		return;
 	}
 
-	Resource *res = p_base->cast_to<Resource>();
+	Resource *res = Object::cast_to<Resource>(p_base);
 
 	if (res && res->get_path() != String()) {
 

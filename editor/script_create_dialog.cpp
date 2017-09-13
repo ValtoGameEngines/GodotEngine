@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -352,9 +352,16 @@ void ScriptCreateDialog::_path_changed(const String &p_path) {
 	/* Does file already exist */
 
 	DirAccess *f = DirAccess::create(DirAccess::ACCESS_RESOURCES);
-	if (f->file_exists(p) && !(f->current_is_dir())) {
+	if (f->dir_exists(p)) {
+		is_new_script_created = false;
+		is_path_valid = false;
+		_msg_path_valid(false, TTR("Directory of the same name exists"));
+	} else if (f->file_exists(p)) {
 		is_new_script_created = false;
 		is_path_valid = true;
+		_msg_path_valid(true, TTR("File exists, will be reused"));
+	} else {
+		path_error_label->set_text("");
 	}
 	memdelete(f);
 	_update_dialog();
@@ -531,28 +538,19 @@ void ScriptCreateDialog::_bind_methods() {
 
 ScriptCreateDialog::ScriptCreateDialog() {
 
-	GridContainer *gc = memnew(GridContainer);
-	VBoxContainer *vb = memnew(VBoxContainer);
-	HBoxContainer *hb = memnew(HBoxContainer);
-	Label *l = memnew(Label);
-	Control *empty = memnew(Control);
-	Control *empty_h = memnew(Control);
-	Control *empty_v = memnew(Control);
-	PanelContainer *pc = memnew(PanelContainer);
-
 	/* DIALOG */
 
 	/* Main Controls */
 
-	gc = memnew(GridContainer);
+	GridContainer *gc = memnew(GridContainer);
 	gc->set_columns(2);
 
 	/* Error Messages Field */
 
-	vb = memnew(VBoxContainer);
+	VBoxContainer *vb = memnew(VBoxContainer);
 
-	hb = memnew(HBoxContainer);
-	l = memnew(Label);
+	HBoxContainer *hb = memnew(HBoxContainer);
+	Label *l = memnew(Label);
 	l->set_text(" - ");
 	hb->add_child(l);
 	error_label = memnew(Label);
@@ -571,19 +569,19 @@ ScriptCreateDialog::ScriptCreateDialog() {
 	hb->add_child(path_error_label);
 	vb->add_child(hb);
 
-	pc = memnew(PanelContainer);
+	PanelContainer *pc = memnew(PanelContainer);
 	pc->set_h_size_flags(Control::SIZE_FILL);
 	pc->add_style_override("panel", EditorNode::get_singleton()->get_gui_base()->get_stylebox("bg", "Tree"));
 	pc->add_child(vb);
 
 	/* Margins */
 
-	empty_h = memnew(Control);
+	Control *empty_h = memnew(Control);
 	empty_h->set_name("empty_h"); //duplicate() doesn't like nodes without a name
 	empty_h->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	empty_h->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 	empty_h->set_custom_minimum_size(Size2(0, 10 * EDSCALE));
-	empty_v = memnew(Control);
+	Control *empty_v = memnew(Control);
 	empty_v->set_name("empty_v");
 	empty_v->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 	empty_v->set_v_size_flags(Control::SIZE_EXPAND_FILL);
@@ -599,6 +597,9 @@ ScriptCreateDialog::ScriptCreateDialog() {
 	hb->add_child(empty_v->duplicate());
 	hb->add_child(vb);
 	hb->add_child(empty_v->duplicate());
+
+	memdelete(empty_h);
+	memdelete(empty_v);
 
 	add_child(hb);
 
@@ -684,7 +685,7 @@ ScriptCreateDialog::ScriptCreateDialog() {
 	internal = memnew(CheckButton);
 	internal->connect("pressed", this, "_built_in_pressed");
 	hb = memnew(HBoxContainer);
-	empty = memnew(Control);
+	Control *empty = memnew(Control);
 	hb->add_child(internal);
 	hb->add_child(empty);
 	l = memnew(Label);

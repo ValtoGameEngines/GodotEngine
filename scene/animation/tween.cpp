@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -224,25 +224,25 @@ void Tween::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "playback_process_mode", PROPERTY_HINT_ENUM, "Fixed,Idle"), "set_tween_process_mode", "get_tween_process_mode");
 
-	BIND_CONSTANT(TWEEN_PROCESS_FIXED);
-	BIND_CONSTANT(TWEEN_PROCESS_IDLE);
+	BIND_ENUM_CONSTANT(TWEEN_PROCESS_FIXED);
+	BIND_ENUM_CONSTANT(TWEEN_PROCESS_IDLE);
 
-	BIND_CONSTANT(TRANS_LINEAR);
-	BIND_CONSTANT(TRANS_SINE);
-	BIND_CONSTANT(TRANS_QUINT);
-	BIND_CONSTANT(TRANS_QUART);
-	BIND_CONSTANT(TRANS_QUAD);
-	BIND_CONSTANT(TRANS_EXPO);
-	BIND_CONSTANT(TRANS_ELASTIC);
-	BIND_CONSTANT(TRANS_CUBIC);
-	BIND_CONSTANT(TRANS_CIRC);
-	BIND_CONSTANT(TRANS_BOUNCE);
-	BIND_CONSTANT(TRANS_BACK);
+	BIND_ENUM_CONSTANT(TRANS_LINEAR);
+	BIND_ENUM_CONSTANT(TRANS_SINE);
+	BIND_ENUM_CONSTANT(TRANS_QUINT);
+	BIND_ENUM_CONSTANT(TRANS_QUART);
+	BIND_ENUM_CONSTANT(TRANS_QUAD);
+	BIND_ENUM_CONSTANT(TRANS_EXPO);
+	BIND_ENUM_CONSTANT(TRANS_ELASTIC);
+	BIND_ENUM_CONSTANT(TRANS_CUBIC);
+	BIND_ENUM_CONSTANT(TRANS_CIRC);
+	BIND_ENUM_CONSTANT(TRANS_BOUNCE);
+	BIND_ENUM_CONSTANT(TRANS_BACK);
 
-	BIND_CONSTANT(EASE_IN);
-	BIND_CONSTANT(EASE_OUT);
-	BIND_CONSTANT(EASE_IN_OUT);
-	BIND_CONSTANT(EASE_OUT_IN);
+	BIND_ENUM_CONSTANT(EASE_IN);
+	BIND_ENUM_CONSTANT(EASE_OUT);
+	BIND_ENUM_CONSTANT(EASE_IN_OUT);
+	BIND_ENUM_CONSTANT(EASE_OUT_IN);
 }
 
 Variant &Tween::_get_initial_val(InterpolateData &p_data) {
@@ -560,12 +560,16 @@ void Tween::_tween_process(float p_delta) {
 
 		switch (data.type) {
 			case INTER_PROPERTY:
-			case INTER_METHOD:
-				break;
+			case INTER_METHOD: {
+				Variant result = _run_equation(data);
+				emit_signal("tween_step", object, data.key, data.elapsed, result);
+				_apply_tween_value(data, result);
+				if (data.finish)
+					_apply_tween_value(data, data.final_val);
+			} break;
+
 			case INTER_CALLBACK:
 				if (data.finish) {
-
-					Variant::CallError error;
 					if (data.call_deferred) {
 
 						switch (data.args) {
@@ -588,8 +592,8 @@ void Tween::_tween_process(float p_delta) {
 								object->call_deferred(data.key, data.arg[0], data.arg[1], data.arg[2], data.arg[3], data.arg[4]);
 								break;
 						}
-
 					} else {
+						Variant::CallError error;
 						Variant *arg[5] = {
 							&data.arg[0],
 							&data.arg[1],
@@ -599,19 +603,11 @@ void Tween::_tween_process(float p_delta) {
 						};
 						object->call(data.key, (const Variant **)arg, data.args, error);
 					}
-					if (!repeat)
-						call_deferred("_remove", object, data.key, true);
 				}
-				continue;
+				break;
 		}
 
-		Variant result = _run_equation(data);
-		emit_signal("tween_step", object, data.key, data.elapsed, result);
-
-		_apply_tween_value(data, result);
-
 		if (data.finish) {
-			_apply_tween_value(data, data.final_val);
 			emit_signal("tween_completed", object, data.key);
 			// not repeat mode, remove completed action
 			if (!repeat)

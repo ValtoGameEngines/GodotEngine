@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -135,6 +135,11 @@ static bool mouse_down_control = false;
 
 - (void)applicationDidChangeScreenParameters:(NSNotification *)notification {
 	//_GodotInputMonitorChange();
+}
+
+- (void)showAbout:(id)sender {
+	if (OS_OSX::singleton->get_main_loop())
+		OS_OSX::singleton->get_main_loop()->notification(MainLoop::NOTIFICATION_WM_ABOUT);
 }
 
 @end
@@ -905,6 +910,8 @@ OS::VideoMode OS_OSX::get_default_video_mode() const {
 
 void OS_OSX::initialize_core() {
 
+	crash_handler.initialize();
+
 	OS_Unix::initialize_core();
 
 	DirAccess::make_default<DirAccessOSX>(DirAccess::ACCESS_RESOURCES);
@@ -1322,6 +1329,46 @@ MainLoop *OS_OSX::get_main_loop() const {
 	return main_loop;
 }
 
+String OS_OSX::get_system_dir(SystemDir p_dir) const {
+
+	NSSearchPathDirectory id = 0;
+
+	switch (p_dir) {
+		case SYSTEM_DIR_DESKTOP: {
+			id = NSDesktopDirectory;
+		} break;
+		case SYSTEM_DIR_DOCUMENTS: {
+			id = NSDocumentDirectory;
+		} break;
+		case SYSTEM_DIR_DOWNLOADS: {
+			id = NSDownloadsDirectory;
+		} break;
+		case SYSTEM_DIR_MOVIES: {
+			id = NSMoviesDirectory;
+		} break;
+		case SYSTEM_DIR_MUSIC: {
+			id = NSMusicDirectory;
+		} break;
+		case SYSTEM_DIR_PICTURES: {
+			id = NSPicturesDirectory;
+		} break;
+	}
+
+	String ret;
+	if (id) {
+
+		NSArray *paths = NSSearchPathForDirectoriesInDomains(id, NSUserDomainMask, YES);
+		if (paths && [paths count] >= 1) {
+
+			char *utfs = strdup([[paths firstObject] UTF8String]);
+			ret.parse_utf8(utfs);
+			free(utfs);
+		}
+	}
+
+	return ret;
+}
+
 bool OS_OSX::can_draw() const {
 
 	return true;
@@ -1428,6 +1475,10 @@ void OS_OSX::set_current_screen(int p_screen) {
 };
 
 Point2 OS_OSX::get_screen_position(int p_screen) const {
+	if (p_screen == -1) {
+		p_screen = get_current_screen();
+	}
+
 	NSArray *screenArray = [NSScreen screens];
 	if (p_screen < [screenArray count]) {
 		float displayScale = 1.0;
@@ -1444,6 +1495,10 @@ Point2 OS_OSX::get_screen_position(int p_screen) const {
 }
 
 int OS_OSX::get_screen_dpi(int p_screen) const {
+	if (p_screen == -1) {
+		p_screen = get_current_screen();
+	}
+
 	NSArray *screenArray = [NSScreen screens];
 	if (p_screen < [screenArray count]) {
 		float displayScale = 1.0;
@@ -1464,6 +1519,10 @@ int OS_OSX::get_screen_dpi(int p_screen) const {
 }
 
 Size2 OS_OSX::get_screen_size(int p_screen) const {
+	if (p_screen == -1) {
+		p_screen = get_current_screen();
+	}
+
 	NSArray *screenArray = [NSScreen screens];
 	if (p_screen < [screenArray count]) {
 		float displayScale = 1.0;
@@ -1514,9 +1573,14 @@ Point2 OS_OSX::get_window_position() const {
 
 void OS_OSX::set_window_position(const Point2 &p_position) {
 
-	Point2 size = p_position;
-	size /= display_scale;
-	[window_object setFrame:NSMakeRect(size.x, size.y, [window_object frame].size.width, [window_object frame].size.height) display:YES];
+	Size2 scr = get_screen_size();
+	NSPoint pos;
+
+	pos.x = p_position.x / display_scale;
+	// For OS X the y starts at the bottom
+	pos.y = (scr.height - p_position.y) / display_scale;
+
+	[window_object setFrameTopLeftPoint:pos];
 
 	_update_window();
 };
@@ -1672,6 +1736,17 @@ String OS_OSX::get_executable_path() const {
 
 		return path;
 	}
+}
+
+String OS_OSX::get_resource_dir() const {
+	// start with our executable path
+	String path = get_executable_path();
+
+	int pos = path.find_last("/Contents/MacOS/");
+	if (pos < 0)
+		return OS::get_resource_dir();
+
+	return path.substr(0, pos) + "/Contents/Resources/";
 }
 
 // Returns string representation of keys, if they are printable.
@@ -1897,7 +1972,7 @@ OS_OSX::OS_OSX() {
 	// Setup Apple menu
 	NSMenu *apple_menu = [[NSMenu alloc] initWithTitle:@""];
 	title = [NSString stringWithFormat:NSLocalizedString(@"About %@", nil), nsappname];
-	[apple_menu addItemWithTitle:title action:@selector(orderFrontStandardAboutPanel:) keyEquivalent:@""];
+	[apple_menu addItemWithTitle:title action:@selector(showAbout:) keyEquivalent:@""];
 
 	[apple_menu addItem:[NSMenuItem separatorItem]];
 
@@ -1948,4 +2023,12 @@ OS_OSX::OS_OSX() {
 
 bool OS_OSX::_check_internal_feature_support(const String &p_feature) {
 	return p_feature == "pc" || p_feature == "s3tc";
+}
+
+void OS_OSX::disable_crash_handler() {
+	crash_handler.disable();
+}
+
+bool OS_OSX::is_disable_crash_handler() const {
+	return crash_handler.is_disabled();
 }

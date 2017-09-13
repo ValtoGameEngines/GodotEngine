@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -115,17 +115,29 @@ void ScriptTextEditor::_load_theme_settings() {
 	//colorize core types
 	Color basetype_color = EDITOR_DEF("text_editor/highlighting/base_type_color", Color(0.3, 0.3, 0.0));
 
+	text_edit->add_keyword_color("String", basetype_color);
 	text_edit->add_keyword_color("Vector2", basetype_color);
-	text_edit->add_keyword_color("Vector3", basetype_color);
-	text_edit->add_keyword_color("Plane", basetype_color);
-	text_edit->add_keyword_color("Quat", basetype_color);
-	text_edit->add_keyword_color("AABB", basetype_color);
-	text_edit->add_keyword_color("Matrix3", basetype_color);
-	text_edit->add_keyword_color("Transform", basetype_color);
-	text_edit->add_keyword_color("Color", basetype_color);
-	text_edit->add_keyword_color("Image", basetype_color);
 	text_edit->add_keyword_color("Rect2", basetype_color);
+	text_edit->add_keyword_color("Transform2D", basetype_color);
+	text_edit->add_keyword_color("Vector3", basetype_color);
+	text_edit->add_keyword_color("Rect3", basetype_color);
+	text_edit->add_keyword_color("Basis", basetype_color);
+	text_edit->add_keyword_color("Plane", basetype_color);
+	text_edit->add_keyword_color("Transform", basetype_color);
+	text_edit->add_keyword_color("Quat", basetype_color);
+	text_edit->add_keyword_color("Color", basetype_color);
+	text_edit->add_keyword_color("Object", basetype_color);
 	text_edit->add_keyword_color("NodePath", basetype_color);
+	text_edit->add_keyword_color("RID", basetype_color);
+	text_edit->add_keyword_color("Dictionary", basetype_color);
+	text_edit->add_keyword_color("Array", basetype_color);
+	text_edit->add_keyword_color("PoolByteArray", basetype_color);
+	text_edit->add_keyword_color("PoolIntArray", basetype_color);
+	text_edit->add_keyword_color("PoolRealArray", basetype_color);
+	text_edit->add_keyword_color("PoolStringArray", basetype_color);
+	text_edit->add_keyword_color("PoolVector2Array", basetype_color);
+	text_edit->add_keyword_color("PoolVector3Array", basetype_color);
+	text_edit->add_keyword_color("PoolColorArray", basetype_color);
 
 	//colorize engine types
 	Color type_color = EDITOR_DEF("text_editor/highlighting/engine_type_color", Color(0.0, 0.2, 0.4));
@@ -524,6 +536,7 @@ void ScriptTextEditor::_validate_script() {
 	}
 
 	emit_signal("name_changed");
+	emit_signal("edited_script_changed");
 }
 
 static Node *_find_node_for_script(Node *p_base, Node *p_current, const Ref<Script> &p_script) {
@@ -596,13 +609,13 @@ void ScriptEditor::_update_modified_scripts_for_external_editor(Ref<Script> p_fo
 	}
 }
 
-void ScriptTextEditor::_code_complete_scripts(void *p_ud, const String &p_code, List<String> *r_options) {
+void ScriptTextEditor::_code_complete_scripts(void *p_ud, const String &p_code, List<String> *r_options, bool &r_force) {
 
 	ScriptTextEditor *ste = (ScriptTextEditor *)p_ud;
-	ste->_code_complete_script(p_code, r_options);
+	ste->_code_complete_script(p_code, r_options, r_force);
 }
 
-void ScriptTextEditor::_code_complete_script(const String &p_code, List<String> *r_options) {
+void ScriptTextEditor::_code_complete_script(const String &p_code, List<String> *r_options, bool &r_force) {
 
 	if (color_panel->is_visible_in_tree()) return;
 	Node *base = get_tree()->get_edited_scene_root();
@@ -610,8 +623,8 @@ void ScriptTextEditor::_code_complete_script(const String &p_code, List<String> 
 		base = _find_node_for_script(base, base, script);
 	}
 	String hint;
-	Error err = script->get_language()->complete_code(p_code, script->get_path().get_base_dir(), base, r_options, hint);
-	if (hint != "") {
+	Error err = script->get_language()->complete_code(p_code, script->get_path().get_base_dir(), base, r_options, r_force, hint);
+	if (err == OK && hint != "") {
 		code_editor->get_text_edit()->set_code_hint(hint);
 	}
 }
@@ -866,6 +879,21 @@ void ScriptTextEditor::_edit_option(int p_op) {
 			//tx->deselect();
 
 		} break;
+		case EDIT_DELETE_LINE: {
+
+			TextEdit *tx = code_editor->get_text_edit();
+			Ref<Script> scr = get_edited_script();
+			if (scr.is_null())
+				return;
+
+			tx->begin_complex_operation();
+			int line = tx->cursor_get_line();
+			tx->set_line(tx->cursor_get_line(), "");
+			tx->backspace_at_cursor();
+			tx->cursor_set_line(line);
+			tx->end_complex_operation();
+
+		} break;
 		case EDIT_CLONE_DOWN: {
 
 			TextEdit *tx = code_editor->get_text_edit();
@@ -920,13 +948,26 @@ void ScriptTextEditor::_edit_option(int p_op) {
 				if (tx->get_selection_to_column() == 0)
 					end -= 1;
 
+				// Check if all lines in the selected block are commented
+				bool is_commented = true;
+				for (int i = begin; i <= end; i++) {
+					if (!tx->get_line(i).begins_with("#")) {
+						is_commented = false;
+						break;
+					}
+				}
 				for (int i = begin; i <= end; i++) {
 					String line_text = tx->get_line(i);
 
-					if (line_text.begins_with("#"))
-						line_text = line_text.substr(1, line_text.length());
-					else
-						line_text = "#" + line_text;
+					if (line_text.strip_edges().empty()) {
+						line_text = "#";
+					} else {
+						if (is_commented) {
+							line_text = line_text.substr(1, line_text.length());
+						} else {
+							line_text = "#" + line_text;
+						}
+					}
 					tx->set_line(i, line_text);
 				}
 			} else {
@@ -956,16 +997,27 @@ void ScriptTextEditor::_edit_option(int p_op) {
 			Ref<Script> scr = get_edited_script();
 			if (scr.is_null())
 				return;
+
+			te->begin_complex_operation();
 			int begin, end;
 			if (te->is_selection_active()) {
 				begin = te->get_selection_from_line();
 				end = te->get_selection_to_line();
+				// ignore if the cursor is not past the first column
+				if (te->get_selection_to_column() == 0) {
+					end--;
+				}
 			} else {
 				begin = 0;
 				end = te->get_line_count() - 1;
 			}
 			scr->get_language()->auto_indent_code(text, begin, end);
-			te->set_text(text);
+			Vector<String> lines = text.split("\n");
+			for (int i = begin; i <= end; ++i) {
+				te->set_line(i, lines[i]);
+			}
+
+			te->end_complex_operation();
 
 		} break;
 		case EDIT_TRIM_TRAILING_WHITESAPCE: {
@@ -1198,7 +1250,7 @@ void ScriptTextEditor::drop_data_fw(const Point2 &p_point, const Variant &p_data
 		}
 
 		if (res->get_path().is_resource_file()) {
-			EditorNode::get_singleton()->show_warning("Only resources from filesystem can be dropped.");
+			EditorNode::get_singleton()->show_warning(TTR("Only resources from filesystem can be dropped."));
 			return;
 		}
 
@@ -1391,6 +1443,7 @@ ScriptTextEditor::ScriptTextEditor() {
 	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/move_down"), EDIT_MOVE_LINE_DOWN);
 	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/indent_left"), EDIT_INDENT_LEFT);
 	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/indent_right"), EDIT_INDENT_RIGHT);
+	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/delete_line"), EDIT_DELETE_LINE);
 	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/toggle_comment"), EDIT_TOGGLE_COMMENT);
 	edit_menu->get_popup()->add_shortcut(ED_GET_SHORTCUT("script_text_editor/clone_down"), EDIT_CLONE_DOWN);
 	edit_menu->get_popup()->add_separator();
@@ -1465,6 +1518,7 @@ void ScriptTextEditor::register_editor() {
 	ED_SHORTCUT("script_text_editor/select_all", TTR("Select All"), KEY_MASK_CMD | KEY_A);
 	ED_SHORTCUT("script_text_editor/move_up", TTR("Move Up"), KEY_MASK_ALT | KEY_UP);
 	ED_SHORTCUT("script_text_editor/move_down", TTR("Move Down"), KEY_MASK_ALT | KEY_DOWN);
+	ED_SHORTCUT("script_text_editor/delete_line", TTR("Delete Line"), KEY_MASK_CTRL | KEY_MASK_SHIFT | KEY_K);
 
 	//leave these at zero, same can be accomplished with tab/shift-tab, including selection
 	//the next/previous in history shortcut in this case makes a lot more sene.

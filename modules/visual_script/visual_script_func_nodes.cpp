@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -85,10 +85,7 @@ Node *VisualScriptFunctionCall::_get_base_node() const {
 		return NULL;
 
 	MainLoop *main_loop = OS::get_singleton()->get_main_loop();
-	if (!main_loop)
-		return NULL;
-
-	SceneTree *scene_tree = main_loop->cast_to<SceneTree>();
+	SceneTree *scene_tree = Object::cast_to<SceneTree>(main_loop);
 
 	if (!scene_tree)
 		return NULL;
@@ -341,12 +338,12 @@ String VisualScriptFunctionCall::get_base_script() const {
 	return base_script;
 }
 
-void VisualScriptFunctionCall::set_singleton(const StringName &p_path) {
+void VisualScriptFunctionCall::set_singleton(const StringName &p_type) {
 
-	if (singleton == p_path)
+	if (singleton == p_type)
 		return;
 
-	singleton = p_path;
+	singleton = p_type;
 	Object *obj = ProjectSettings::get_singleton()->get_singleton_object(singleton);
 	if (obj) {
 		base_type = obj->get_class();
@@ -747,10 +744,10 @@ void VisualScriptFunctionCall::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "validate"), "set_validate", "get_validate");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "rpc_call_mode", PROPERTY_HINT_ENUM, "Disabled,Reliable,Unreliable,ReliableToID,UnreliableToID"), "set_rpc_call_mode", "get_rpc_call_mode"); //when set, if loaded properly, will override argument count.
 
-	BIND_CONSTANT(CALL_MODE_SELF);
-	BIND_CONSTANT(CALL_MODE_NODE_PATH);
-	BIND_CONSTANT(CALL_MODE_INSTANCE);
-	BIND_CONSTANT(CALL_MODE_BASIC_TYPE);
+	BIND_ENUM_CONSTANT(CALL_MODE_SELF);
+	BIND_ENUM_CONSTANT(CALL_MODE_NODE_PATH);
+	BIND_ENUM_CONSTANT(CALL_MODE_INSTANCE);
+	BIND_ENUM_CONSTANT(CALL_MODE_BASIC_TYPE);
 }
 
 class VisualScriptNodeInstanceFunctionCall : public VisualScriptNodeInstance {
@@ -776,7 +773,7 @@ public:
 		if (!p_base)
 			return false;
 
-		Node *node = p_base->cast_to<Node>();
+		Node *node = Object::cast_to<Node>(p_base);
 		if (!node)
 			return false;
 
@@ -817,7 +814,7 @@ public:
 			} break;
 			case VisualScriptFunctionCall::CALL_MODE_NODE_PATH: {
 
-				Node *node = instance->get_owner_ptr()->cast_to<Node>();
+				Node *node = Object::cast_to<Node>(instance->get_owner_ptr());
 				if (!node) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = "Base object is not a Node!";
@@ -825,7 +822,7 @@ public:
 				}
 
 				Node *another = node->get_node(node_path);
-				if (!node) {
+				if (!another) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = "Path does not lead Node!";
 					return 0;
@@ -961,10 +958,8 @@ Node *VisualScriptPropertySet::_get_base_node() const {
 		return NULL;
 
 	MainLoop *main_loop = OS::get_singleton()->get_main_loop();
-	if (!main_loop)
-		return NULL;
 
-	SceneTree *scene_tree = main_loop->cast_to<SceneTree>();
+	SceneTree *scene_tree = Object::cast_to<SceneTree>(main_loop);
 
 	if (!scene_tree)
 		return NULL;
@@ -1159,12 +1154,10 @@ String VisualScriptPropertySet::get_base_script() const {
 
 void VisualScriptPropertySet::_update_cache() {
 
-	if (!OS::get_singleton()->get_main_loop())
-		return;
-	if (!OS::get_singleton()->get_main_loop()->cast_to<SceneTree>())
+	if (!Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop()))
 		return;
 
-	if (!OS::get_singleton()->get_main_loop()->cast_to<SceneTree>()->is_editor_hint()) //only update cache if editor exists, it's pointless otherwise
+	if (!Engine::get_singleton()->is_editor_hint()) //only update cache if editor exists, it's pointless otherwise
 		return;
 
 	if (call_mode == CALL_MODE_BASIC_TYPE) {
@@ -1490,9 +1483,10 @@ void VisualScriptPropertySet::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "property"), "set_property", "get_property");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "index"), "set_index", "get_index");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "assign_op", PROPERTY_HINT_ENUM, "Assign,Add,Sub,Mul,Div,Mod,ShiftLeft,ShiftRight,BitAnd,BitOr,Bitxor"), "set_assign_op", "get_assign_op");
-	BIND_CONSTANT(CALL_MODE_SELF);
-	BIND_CONSTANT(CALL_MODE_NODE_PATH);
-	BIND_CONSTANT(CALL_MODE_INSTANCE);
+
+	BIND_ENUM_CONSTANT(CALL_MODE_SELF);
+	BIND_ENUM_CONSTANT(CALL_MODE_NODE_PATH);
+	BIND_ENUM_CONSTANT(CALL_MODE_INSTANCE);
 }
 
 class VisualScriptNodeInstancePropertySet : public VisualScriptNodeInstance {
@@ -1594,7 +1588,7 @@ public:
 			} break;
 			case VisualScriptPropertySet::CALL_MODE_NODE_PATH: {
 
-				Node *node = instance->get_owner_ptr()->cast_to<Node>();
+				Node *node = Object::cast_to<Node>(instance->get_owner_ptr());
 				if (!node) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = "Base object is not a Node!";
@@ -1602,7 +1596,7 @@ public:
 				}
 
 				Node *another = node->get_node(node_path);
-				if (!node) {
+				if (!another) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = "Path does not lead Node!";
 					return 0;
@@ -1729,10 +1723,8 @@ Node *VisualScriptPropertyGet::_get_base_node() const {
 		return NULL;
 
 	MainLoop *main_loop = OS::get_singleton()->get_main_loop();
-	if (!main_loop)
-		return NULL;
 
-	SceneTree *scene_tree = main_loop->cast_to<SceneTree>();
+	SceneTree *scene_tree = Object::cast_to<SceneTree>(main_loop);
 
 	if (!scene_tree)
 		return NULL;
@@ -2202,9 +2194,9 @@ void VisualScriptPropertyGet::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "property"), "set_property", "get_property");
 	ADD_PROPERTY(PropertyInfo(Variant::STRING, "index", PROPERTY_HINT_ENUM), "set_index", "get_index");
 
-	BIND_CONSTANT(CALL_MODE_SELF);
-	BIND_CONSTANT(CALL_MODE_NODE_PATH);
-	BIND_CONSTANT(CALL_MODE_INSTANCE);
+	BIND_ENUM_CONSTANT(CALL_MODE_SELF);
+	BIND_ENUM_CONSTANT(CALL_MODE_NODE_PATH);
+	BIND_ENUM_CONSTANT(CALL_MODE_INSTANCE);
 }
 
 class VisualScriptNodeInstancePropertyGet : public VisualScriptNodeInstance {
@@ -2241,7 +2233,7 @@ public:
 			} break;
 			case VisualScriptPropertyGet::CALL_MODE_NODE_PATH: {
 
-				Node *node = instance->get_owner_ptr()->cast_to<Node>();
+				Node *node = Object::cast_to<Node>(instance->get_owner_ptr());
 				if (!node) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = RTR("Base object is not a Node!");
@@ -2249,7 +2241,7 @@ public:
 				}
 
 				Node *another = node->get_node(node_path);
-				if (!node) {
+				if (!another) {
 					r_error.error = Variant::CallError::CALL_ERROR_INVALID_METHOD;
 					r_error_str = RTR("Path does not lead Node!");
 					return 0;

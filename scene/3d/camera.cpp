@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -339,15 +339,8 @@ Vector3 Camera::project_local_ray_normal(const Point2 &p_pos) const {
 		ERR_FAIL_COND_V(!is_inside_tree(), Vector3());
 	}
 
-#if 0
-	Size2 viewport_size = get_viewport()->get_visible_rect().size;
-	Vector2 cpos = p_pos;
-#else
-
 	Size2 viewport_size = get_viewport()->get_camera_rect_size();
 	Vector2 cpos = get_viewport()->get_camera_coords(p_pos);
-#endif
-
 	Vector3 ray;
 
 	if (mode == PROJECTION_ORTHOGONAL) {
@@ -371,17 +364,9 @@ Vector3 Camera::project_ray_origin(const Point2 &p_pos) const {
 		ERR_FAIL_COND_V(!is_inside_tree(), Vector3());
 	}
 
-#if 0
-	Size2 viewport_size = get_viewport()->get_visible_rect().size;
-	Vector2 cpos = p_pos;
-#else
-
 	Size2 viewport_size = get_viewport()->get_camera_rect_size();
 	Vector2 cpos = get_viewport()->get_camera_coords(p_pos);
-#endif
-
 	ERR_FAIL_COND_V(viewport_size.y == 0, Vector3());
-	//float aspect = viewport_size.x / viewport_size.y;
 
 	if (mode == PROJECTION_PERSPECTIVE) {
 
@@ -564,15 +549,15 @@ void Camera::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_doppler_tracking"), &Camera::get_doppler_tracking);
 	//ClassDB::bind_method(D_METHOD("_camera_make_current"),&Camera::_camera_make_current );
 
-	BIND_CONSTANT(PROJECTION_PERSPECTIVE);
-	BIND_CONSTANT(PROJECTION_ORTHOGONAL);
+	BIND_ENUM_CONSTANT(PROJECTION_PERSPECTIVE);
+	BIND_ENUM_CONSTANT(PROJECTION_ORTHOGONAL);
 
-	BIND_CONSTANT(KEEP_WIDTH);
-	BIND_CONSTANT(KEEP_HEIGHT);
+	BIND_ENUM_CONSTANT(KEEP_WIDTH);
+	BIND_ENUM_CONSTANT(KEEP_HEIGHT);
 
-	BIND_CONSTANT(DOPPLER_TRACKING_DISABLED)
-	BIND_CONSTANT(DOPPLER_TRACKING_IDLE_STEP)
-	BIND_CONSTANT(DOPPLER_TRACKING_FIXED_STEP)
+	BIND_ENUM_CONSTANT(DOPPLER_TRACKING_DISABLED)
+	BIND_ENUM_CONSTANT(DOPPLER_TRACKING_IDLE_STEP)
+	BIND_ENUM_CONSTANT(DOPPLER_TRACKING_FIXED_STEP)
 }
 
 float Camera::get_fov() const {

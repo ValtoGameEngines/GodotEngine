@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -30,6 +30,10 @@
 #ifdef OSX_ENABLED
 
 #include "audio_driver_osx.h"
+#include "core/project_settings.h"
+#include "os/os.h"
+
+#define kOutputBus 0
 
 static OSStatus outputDeviceAddressCB(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress *inAddresses, void *__nullable inClientData) {
 	AudioDriverOSX *driver = (AudioDriverOSX *)inClientData;
@@ -40,42 +44,74 @@ static OSStatus outputDeviceAddressCB(AudioObjectID inObjectID, UInt32 inNumberA
 }
 
 Error AudioDriverOSX::initDevice() {
-	AudioStreamBasicDescription strdesc;
-	strdesc.mFormatID = kAudioFormatLinearPCM;
-	strdesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked;
-	strdesc.mChannelsPerFrame = channels;
-	strdesc.mSampleRate = 44100;
-	strdesc.mFramesPerPacket = 1;
-	strdesc.mBitsPerChannel = 16;
-	strdesc.mBytesPerFrame = strdesc.mBitsPerChannel * strdesc.mChannelsPerFrame / 8;
-	strdesc.mBytesPerPacket = strdesc.mBytesPerFrame * strdesc.mFramesPerPacket;
-
-	OSStatus result;
-	AURenderCallbackStruct callback;
 	AudioComponentDescription desc;
-	AudioComponent comp = NULL;
-	const AudioUnitElement output_bus = 0;
-	const AudioUnitElement bus = output_bus;
-	const AudioUnitScope scope = kAudioUnitScope_Input;
-
 	zeromem(&desc, sizeof(desc));
 	desc.componentType = kAudioUnitType_Output;
 	desc.componentSubType = kAudioUnitSubType_HALOutput;
 	desc.componentManufacturer = kAudioUnitManufacturer_Apple;
 
-	comp = AudioComponentFindNext(NULL, &desc);
+	AudioComponent comp = AudioComponentFindNext(NULL, &desc);
 	ERR_FAIL_COND_V(comp == NULL, FAILED);
 
-	result = AudioComponentInstanceNew(comp, &audio_unit);
+	OSStatus result = AudioComponentInstanceNew(comp, &audio_unit);
 	ERR_FAIL_COND_V(result != noErr, FAILED);
 
-	result = AudioUnitSetProperty(audio_unit, kAudioUnitProperty_StreamFormat, scope, bus, &strdesc, sizeof(strdesc));
+	AudioStreamBasicDescription strdesc;
+
+	zeromem(&strdesc, sizeof(strdesc));
+	UInt32 size = sizeof(strdesc);
+	result = AudioUnitGetProperty(audio_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, kOutputBus, &strdesc, &size);
 	ERR_FAIL_COND_V(result != noErr, FAILED);
 
+	switch (strdesc.mChannelsPerFrame) {
+		case 2: // Stereo
+		case 4: // Surround 3.1
+		case 6: // Surround 5.1
+		case 8: // Surround 7.1
+			channels = strdesc.mChannelsPerFrame;
+			break;
+
+		default:
+			// Unknown number of channels, default to stereo
+			channels = 2;
+			break;
+	}
+
+	mix_rate = GLOBAL_DEF("audio/mix_rate", DEFAULT_MIX_RATE);
+
+	zeromem(&strdesc, sizeof(strdesc));
+	strdesc.mFormatID = kAudioFormatLinearPCM;
+	strdesc.mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked;
+	strdesc.mChannelsPerFrame = channels;
+	strdesc.mSampleRate = mix_rate;
+	strdesc.mFramesPerPacket = 1;
+	strdesc.mBitsPerChannel = 16;
+	strdesc.mBytesPerFrame = strdesc.mBitsPerChannel * strdesc.mChannelsPerFrame / 8;
+	strdesc.mBytesPerPacket = strdesc.mBytesPerFrame * strdesc.mFramesPerPacket;
+
+	result = AudioUnitSetProperty(audio_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, kOutputBus, &strdesc, sizeof(strdesc));
+	ERR_FAIL_COND_V(result != noErr, FAILED);
+
+	int latency = GLOBAL_DEF("audio/output_latency", DEFAULT_OUTPUT_LATENCY);
+	// Sample rate is independent of channels (ref: https://stackoverflow.com/questions/11048825/audio-sample-frequency-rely-on-channels)
+	buffer_frames = closest_power_of_2(latency * mix_rate / 1000);
+
+	result = AudioUnitSetProperty(audio_unit, kAudioDevicePropertyBufferFrameSize, kAudioUnitScope_Global, kOutputBus, &buffer_frames, sizeof(UInt32));
+	ERR_FAIL_COND_V(result != noErr, FAILED);
+
+	buffer_size = buffer_frames * channels;
+	samples_in.resize(buffer_size);
+
+	if (OS::get_singleton()->is_stdout_verbose()) {
+		print_line("CoreAudio: detected " + itos(channels) + " channels");
+		print_line("CoreAudio: audio buffer frames: " + itos(buffer_frames) + " calculated latency: " + itos(buffer_frames * 1000 / mix_rate) + "ms");
+	}
+
+	AURenderCallbackStruct callback;
 	zeromem(&callback, sizeof(AURenderCallbackStruct));
 	callback.inputProc = &AudioDriverOSX::output_callback;
 	callback.inputProcRefCon = this;
-	result = AudioUnitSetProperty(audio_unit, kAudioUnitProperty_SetRenderCallback, scope, bus, &callback, sizeof(callback));
+	result = AudioUnitSetProperty(audio_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, kOutputBus, &callback, sizeof(callback));
 	ERR_FAIL_COND_V(result != noErr, FAILED);
 
 	result = AudioUnitInitialize(audio_unit);
@@ -114,15 +150,10 @@ Error AudioDriverOSX::init() {
 	result = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceAddressCB, this);
 	ERR_FAIL_COND_V(result != noErr, FAILED);
 
-	const int samples = 1024;
-	samples_in = memnew_arr(int32_t, samples); // whatever
-	buffer_frames = samples / channels;
-
 	return initDevice();
 };
 
 Error AudioDriverOSX::reopen() {
-	Error err;
 	bool restart = false;
 
 	lock();
@@ -131,7 +162,7 @@ Error AudioDriverOSX::reopen() {
 		restart = true;
 	}
 
-	err = finishDevice();
+	Error err = finishDevice();
 	if (err != OK) {
 		ERR_PRINT("finishDevice failed");
 		unlock();
@@ -179,7 +210,7 @@ OSStatus AudioDriverOSX::output_callback(void *inRefCon,
 		while (frames_left) {
 
 			int frames = MIN(frames_left, ad->buffer_frames);
-			ad->audio_server_process(frames, ad->samples_in);
+			ad->audio_server_process(frames, ad->samples_in.ptr());
 
 			for (int j = 0; j < frames * ad->channels; j++) {
 
@@ -208,11 +239,11 @@ void AudioDriverOSX::start() {
 };
 
 int AudioDriverOSX::get_mix_rate() const {
-	return 44100;
+	return mix_rate;
 };
 
 AudioDriver::SpeakerMode AudioDriverOSX::get_speaker_mode() const {
-	return SPEAKER_MODE_STEREO;
+	return get_speaker_mode_by_total_channels(channels);
 };
 
 void AudioDriverOSX::lock() {
@@ -232,29 +263,37 @@ bool AudioDriverOSX::try_lock() {
 }
 
 void AudioDriverOSX::finish() {
-	OSStatus result;
-
 	finishDevice();
 
-	result = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceAddressCB, this);
+	OSStatus result = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &outputDeviceAddress, &outputDeviceAddressCB, this);
 	if (result != noErr) {
 		ERR_PRINT("AudioObjectRemovePropertyListener failed");
+	}
+
+	AURenderCallbackStruct callback;
+	zeromem(&callback, sizeof(AURenderCallbackStruct));
+	result = AudioUnitSetProperty(audio_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, kOutputBus, &callback, sizeof(callback));
+	if (result != noErr) {
+		ERR_PRINT("AudioUnitSetProperty failed");
 	}
 
 	if (mutex) {
 		memdelete(mutex);
 		mutex = NULL;
 	}
-
-	if (samples_in) {
-		memdelete_arr(samples_in);
-		samples_in = NULL;
-	}
 };
 
 AudioDriverOSX::AudioDriverOSX() {
+	active = false;
 	mutex = NULL;
-	samples_in = NULL;
+
+	mix_rate = 0;
+	channels = 2;
+
+	buffer_size = 0;
+	buffer_frames = 0;
+
+	samples_in.clear();
 };
 
 AudioDriverOSX::~AudioDriverOSX(){};

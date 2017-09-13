@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -30,6 +30,7 @@
 #ifndef OS_OSX_H
 #define OS_OSX_H
 
+#include "crash_handler_osx.h"
 #include "drivers/alsa/audio_driver_alsa.h"
 #include "drivers/rtaudio/audio_driver_rtaudio.h"
 #include "drivers/unix/os_unix.h"
@@ -110,6 +111,8 @@ public:
 
 	power_osx *power_manager;
 
+	CrashHandler crash_handler;
+
 	float _mouse_scale(float p_scale) {
 		if (display_scale > 1.0)
 			return p_scale;
@@ -160,6 +163,8 @@ public:
 
 	virtual MainLoop *get_main_loop() const;
 
+	virtual String get_system_dir(SystemDir p_dir) const;
+
 	virtual bool can_draw() const;
 
 	virtual void set_clipboard(const String &p_text);
@@ -179,6 +184,7 @@ public:
 	virtual void get_fullscreen_mode_list(List<VideoMode> *p_list, int p_screen = 0) const;
 
 	virtual String get_executable_path() const;
+	virtual String get_resource_dir() const;
 
 	virtual LatinKeyboardVariant get_latin_keyboard_variant() const;
 
@@ -187,9 +193,9 @@ public:
 	virtual int get_screen_count() const;
 	virtual int get_current_screen() const;
 	virtual void set_current_screen(int p_screen);
-	virtual Point2 get_screen_position(int p_screen = 0) const;
-	virtual Size2 get_screen_size(int p_screen = 0) const;
-	virtual int get_screen_dpi(int p_screen = 0) const;
+	virtual Point2 get_screen_position(int p_screen = -1) const;
+	virtual Size2 get_screen_size(int p_screen = -1) const;
+	virtual int get_screen_dpi(int p_screen = -1) const;
 
 	virtual Point2 get_window_position() const;
 	virtual void set_window_position(const Point2 &p_position);
@@ -220,6 +226,9 @@ public:
 
 	void set_mouse_mode(MouseMode p_mode);
 	MouseMode get_mouse_mode() const;
+
+	void disable_crash_handler();
+	bool is_disable_crash_handler() const;
 
 	OS_OSX();
 };

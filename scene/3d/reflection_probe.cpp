@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -252,8 +252,8 @@ void ReflectionProbe::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "interior_ambient_energy", PROPERTY_HINT_RANGE, "0,16,0.01"), "set_interior_ambient_energy", "get_interior_ambient_energy");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "interior_ambient_contrib", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_interior_ambient_probe_contribution", "get_interior_ambient_probe_contribution");
 
-	BIND_CONSTANT(UPDATE_ONCE);
-	BIND_CONSTANT(UPDATE_ALWAYS);
+	BIND_ENUM_CONSTANT(UPDATE_ONCE);
+	BIND_ENUM_CONSTANT(UPDATE_ALWAYS);
 }
 
 ReflectionProbe::ReflectionProbe() {

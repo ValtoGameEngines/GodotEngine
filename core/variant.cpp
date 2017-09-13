@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -1764,14 +1764,14 @@ Variant::operator Object *() const {
 Variant::operator Node *() const {
 
 	if (type == OBJECT)
-		return _get_obj().obj ? _get_obj().obj->cast_to<Node>() : NULL;
+		return Object::cast_to<Node>(_get_obj().obj);
 	else
 		return NULL;
 }
 Variant::operator Control *() const {
 
 	if (type == OBJECT)
-		return _get_obj().obj ? _get_obj().obj->cast_to<Control>() : NULL;
+		return Object::cast_to<Control>(_get_obj().obj);
 	else
 		return NULL;
 }

@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -45,6 +45,7 @@ public:
 		BG_CLEAR_COLOR,
 		BG_COLOR,
 		BG_SKY,
+		BG_COLOR_SKY,
 		BG_CANVAS,
 		BG_KEEP,
 		BG_MAX
@@ -224,10 +225,10 @@ public:
 	void set_ssr_max_steps(int p_steps);
 	int get_ssr_max_steps() const;
 
-	void set_ssr_fade_in(float p_transition);
+	void set_ssr_fade_in(float p_fade_in);
 	float get_ssr_fade_in() const;
 
-	void set_ssr_fade_out(float p_transition);
+	void set_ssr_fade_out(float p_fade_out);
 	float get_ssr_fade_out() const;
 
 	void set_ssr_depth_tolerance(float p_depth_tolerance);

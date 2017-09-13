@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -44,9 +44,12 @@ class AudioDriverOSX : public AudioDriver {
 	bool active;
 	Mutex *mutex;
 
-	int channels;
-	int32_t *samples_in;
-	int buffer_frames;
+	int mix_rate;
+	unsigned int channels;
+	unsigned int buffer_frames;
+	unsigned int buffer_size;
+
+	Vector<int32_t> samples_in;
 
 	static OSStatus output_callback(void *inRefCon,
 			AudioUnitRenderActionFlags *ioActionFlags,

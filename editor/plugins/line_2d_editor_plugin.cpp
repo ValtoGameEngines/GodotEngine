@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -54,9 +54,9 @@ void Line2DEditor::_notification(int p_what) {
 	}
 }
 
-Vector2 Line2DEditor::mouse_to_local_pos(Vector2 gpoint, bool alt) {
+Vector2 Line2DEditor::mouse_to_local_pos(Vector2 gpos, bool alt) {
 	Transform2D xform = canvas_item_editor->get_canvas_transform() * node->get_global_transform();
-	return !alt ? canvas_item_editor->snap_point(xform.affine_inverse().xform(gpoint)) : node->get_global_transform().affine_inverse().xform(canvas_item_editor->snap_point(canvas_item_editor->get_canvas_transform().affine_inverse().xform(gpoint)));
+	return !alt ? canvas_item_editor->snap_point(xform.affine_inverse().xform(gpos)) : node->get_global_transform().affine_inverse().xform(canvas_item_editor->snap_point(canvas_item_editor->get_canvas_transform().affine_inverse().xform(gpos)));
 }
 
 int Line2DEditor::get_point_index_at(Vector2 gpos) {
@@ -189,7 +189,7 @@ void Line2DEditor::edit(Node *p_line2d) {
 		canvas_item_editor = CanvasItemEditor::get_singleton();
 
 	if (p_line2d) {
-		node = p_line2d->cast_to<Line2D>();
+		node = Object::cast_to<Line2D>(p_line2d);
 		if (!canvas_item_editor->get_viewport_control()->is_connected("draw", this, "_canvas_draw"))
 			canvas_item_editor->get_viewport_control()->connect("draw", this, "_canvas_draw");
 		if (!node->is_connected("visibility_changed", this, "_node_visibility_changed"))
@@ -211,7 +211,7 @@ void Line2DEditor::_bind_methods() {
 }
 
 void Line2DEditor::_mode_selected(int p_mode) {
-	for (unsigned int i = 0; i < _MODE_COUNT; ++i) {
+	for (int i = 0; i < _MODE_COUNT; ++i) {
 		toolbar_buttons[i]->set_pressed(i == p_mode);
 	}
 	mode = Mode(p_mode);
@@ -276,7 +276,7 @@ Line2DEditor::Line2DEditor(EditorNode *p_editor) {
 //----------------------------------------------------------------------------
 
 void Line2DEditorPlugin::edit(Object *p_object) {
-	line2d_editor->edit(p_object->cast_to<Node>());
+	line2d_editor->edit(Object::cast_to<Node>(p_object));
 }
 
 bool Line2DEditorPlugin::handles(Object *p_object) const {

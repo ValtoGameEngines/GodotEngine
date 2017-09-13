@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -75,6 +75,8 @@ private:
 	Transform inv_transform;
 	bool _static;
 
+	SelfList<CollisionObjectSW> pending_shape_update_list;
+
 	void _update_shapes();
 
 protected:
@@ -98,7 +100,7 @@ protected:
 	void _set_static(bool p_static);
 
 	virtual void _shapes_changed() = 0;
-	void _set_space(SpaceSW *space);
+	void _set_space(SpaceSW *p_space);
 
 	bool ray_pickable;
 

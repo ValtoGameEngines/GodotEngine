@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -314,7 +314,7 @@ public:
 
 	mutable RID_Owner<Texture> texture_owner;
 
-	Ref<Image> _get_gl_image_and_format(const Ref<Image> &p_image, Image::Format p_format, uint32_t p_flags, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_type, bool &r_compressed, bool &srgb);
+	Ref<Image> _get_gl_image_and_format(const Ref<Image> &p_image, Image::Format p_format, uint32_t p_flags, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_gl_type, bool &r_compressed, bool &srgb);
 
 	virtual RID texture_create();
 	virtual void texture_allocate(RID p_texture, int p_width, int p_height, Image::Format p_format, uint32_t p_flags = VS::TEXTURE_FLAGS_DEFAULT);
@@ -410,6 +410,7 @@ public:
 			int light_mode;
 			bool uses_screen_texture;
 			bool uses_screen_uv;
+			bool uses_time;
 
 		} canvas_item;
 
@@ -444,11 +445,12 @@ public:
 			bool uses_alpha;
 			bool uses_alpha_scissor;
 			bool unshaded;
-			bool ontop;
+			bool no_depth_test;
 			bool uses_vertex;
 			bool uses_discard;
 			bool uses_sss;
 			bool uses_screen_texture;
+			bool uses_time;
 			bool writes_modelview_or_projection;
 			bool uses_vertex_lighting;
 
@@ -502,6 +504,7 @@ public:
 		SelfList<Material> dirty_list;
 		Vector<RID> textures;
 		float line_width;
+		int render_priority;
 
 		RID next_pass;
 
@@ -523,13 +526,14 @@ public:
 			ubo_id = 0;
 			ubo_size = 0;
 			last_pass = 0;
+			render_priority = 0;
 		}
 	};
 
 	mutable SelfList<Material>::List _material_dirty_list;
 	void _material_make_dirty(Material *p_material) const;
-	void _material_add_geometry(RID p_material, Geometry *p_instantiable);
-	void _material_remove_geometry(RID p_material, Geometry *p_instantiable);
+	void _material_add_geometry(RID p_material, Geometry *p_geometry);
+	void _material_remove_geometry(RID p_material, Geometry *p_geometry);
 
 	mutable RID_Owner<Material> material_owner;
 
@@ -549,6 +553,8 @@ public:
 
 	virtual void material_add_instance_owner(RID p_material, RasterizerScene::InstanceBase *p_instance);
 	virtual void material_remove_instance_owner(RID p_material, RasterizerScene::InstanceBase *p_instance);
+
+	virtual void material_set_render_priority(RID p_material, int priority);
 
 	void _update_material(Material *material);
 
@@ -868,10 +874,12 @@ public:
 		RID projector;
 		bool shadow;
 		bool negative;
+		bool reverse_cull;
 		uint32_t cull_mask;
 		VS::LightOmniShadowMode omni_shadow_mode;
 		VS::LightOmniShadowDetail omni_shadow_detail;
 		VS::LightDirectionalShadowMode directional_shadow_mode;
+		VS::LightDirectionalShadowDepthRangeMode directional_range_mode;
 		bool directional_blend_splits;
 		uint64_t version;
 	};
@@ -887,6 +895,7 @@ public:
 	virtual void light_set_projector(RID p_light, RID p_texture);
 	virtual void light_set_negative(RID p_light, bool p_enable);
 	virtual void light_set_cull_mask(RID p_light, uint32_t p_mask);
+	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled);
 
 	virtual void light_omni_set_shadow_mode(RID p_light, VS::LightOmniShadowMode p_mode);
 	virtual void light_omni_set_shadow_detail(RID p_light, VS::LightOmniShadowDetail p_detail);
@@ -897,6 +906,9 @@ public:
 
 	virtual VS::LightDirectionalShadowMode light_directional_get_shadow_mode(RID p_light);
 	virtual VS::LightOmniShadowMode light_omni_get_shadow_mode(RID p_light);
+
+	virtual void light_directional_set_shadow_depth_range_mode(RID p_light, VS::LightDirectionalShadowDepthRangeMode p_range_mode);
+	virtual VS::LightDirectionalShadowDepthRangeMode light_directional_get_shadow_depth_range_mode(RID p_light) const;
 
 	virtual bool light_has_shadow(RID p_light) const;
 
@@ -950,23 +962,6 @@ public:
 	virtual Vector3 reflection_probe_get_origin_offset(RID p_probe) const;
 	virtual float reflection_probe_get_origin_max_distance(RID p_probe) const;
 	virtual bool reflection_probe_renders_shadows(RID p_probe) const;
-
-	/* ROOM API */
-
-	virtual RID room_create();
-	virtual void room_add_bounds(RID p_room, const PoolVector<Vector2> &p_convex_polygon, float p_height, const Transform &p_transform);
-	virtual void room_clear_bounds(RID p_room);
-
-	/* PORTAL API */
-
-	// portals are only (x/y) points, forming a convex shape, which its clockwise
-	// order points outside. (z is 0);
-
-	virtual RID portal_create();
-	virtual void portal_set_shape(RID p_portal, const Vector<Point2> &p_shape);
-	virtual void portal_set_enabled(RID p_portal, bool p_enabled);
-	virtual void portal_set_disable_distance(RID p_portal, float p_distance);
-	virtual void portal_set_disabled_color(RID p_portal, const Color &p_color);
 
 	/* GI PROBE API */
 
@@ -1168,7 +1163,7 @@ public:
 
 	virtual void particles_set_draw_order(RID p_particles, VS::ParticlesDrawOrder p_order);
 
-	virtual void particles_set_draw_passes(RID p_particles, int p_count);
+	virtual void particles_set_draw_passes(RID p_particles, int p_passes);
 	virtual void particles_set_draw_pass_mesh(RID p_particles, int p_pass, RID p_mesh);
 
 	virtual void particles_request_process(RID p_particles);

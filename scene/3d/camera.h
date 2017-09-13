@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -126,9 +126,9 @@ public:
 
 	virtual Transform get_camera_transform() const;
 
-	Vector3 project_ray_normal(const Point2 &p_point) const;
-	Vector3 project_ray_origin(const Point2 &p_point) const;
-	Vector3 project_local_ray_normal(const Point2 &p_point) const;
+	Vector3 project_ray_normal(const Point2 &p_pos) const;
+	Vector3 project_ray_origin(const Point2 &p_pos) const;
+	Vector3 project_local_ray_normal(const Point2 &p_pos) const;
 	Point2 unproject_position(const Vector3 &p_pos) const;
 	bool is_position_behind(const Vector3 &p_pos) const;
 	Vector3 project_position(const Point2 &p_point) const;

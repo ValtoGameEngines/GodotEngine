@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -428,8 +428,8 @@ struct _VariantCall {
 	VCALL_LOCALMEM2R(Quat, slerpni);
 	VCALL_LOCALMEM4R(Quat, cubic_slerp);
 
-	VCALL_LOCALMEM0R(Color, to_32);
-	VCALL_LOCALMEM0R(Color, to_ARGB32);
+	VCALL_LOCALMEM0R(Color, to_rgba32);
+	VCALL_LOCALMEM0R(Color, to_argb32);
 	VCALL_LOCALMEM0R(Color, gray);
 	VCALL_LOCALMEM0R(Color, inverted);
 	VCALL_LOCALMEM0R(Color, contrasted);
@@ -481,6 +481,7 @@ struct _VariantCall {
 	VCALL_LOCALMEM1(Array, erase);
 	VCALL_LOCALMEM0(Array, sort);
 	VCALL_LOCALMEM2(Array, sort_custom);
+	VCALL_LOCALMEM0R(Array, duplicate);
 	VCALL_LOCALMEM0(Array, invert);
 
 	static void _call_PoolByteArray_get_string_from_ascii(Variant &r_ret, Variant &p_self, const Variant **p_args) {
@@ -729,9 +730,6 @@ struct _VariantCall {
 	VCALL_PTR1R(Basis, scaled);
 	VCALL_PTR0R(Basis, get_scale);
 	VCALL_PTR0R(Basis, get_euler);
-	VCALL_PTR1(Basis, set_scale);
-	VCALL_PTR1(Basis, set_rotation_euler);
-	VCALL_PTR2(Basis, set_rotation_axis_angle);
 	VCALL_PTR1R(Basis, tdotx);
 	VCALL_PTR1R(Basis, tdoty);
 	VCALL_PTR1R(Basis, tdotz);
@@ -747,6 +745,7 @@ struct _VariantCall {
 	VCALL_PTR1R(Transform, translated);
 	VCALL_PTR0R(Transform, orthonormalized);
 	VCALL_PTR2R(Transform, looking_at);
+	VCALL_PTR2R(Transform, interpolate_with);
 
 	static void _call_Transform_xform(Variant &r_ret, Variant &p_self, const Variant **p_args) {
 
@@ -1525,8 +1524,8 @@ void register_variant_methods() {
 	ADDFUNC2(QUAT, QUAT, Quat, slerpni, QUAT, "b", REAL, "t", varray());
 	ADDFUNC4(QUAT, QUAT, Quat, cubic_slerp, QUAT, "b", QUAT, "pre_a", QUAT, "post_b", REAL, "t", varray());
 
-	ADDFUNC0(COLOR, INT, Color, to_32, varray());
-	ADDFUNC0(COLOR, INT, Color, to_ARGB32, varray());
+	ADDFUNC0(COLOR, INT, Color, to_rgba32, varray());
+	ADDFUNC0(COLOR, INT, Color, to_argb32, varray());
 	ADDFUNC0(COLOR, REAL, Color, gray, varray());
 	ADDFUNC0(COLOR, COLOR, Color, inverted, varray());
 	ADDFUNC0(COLOR, COLOR, Color, contrasted, varray());
@@ -1577,6 +1576,7 @@ void register_variant_methods() {
 	ADDFUNC0(ARRAY, NIL, Array, sort, varray());
 	ADDFUNC2(ARRAY, NIL, Array, sort_custom, OBJECT, "obj", STRING, "func", varray());
 	ADDFUNC0(ARRAY, NIL, Array, invert, varray());
+	ADDFUNC0(ARRAY, ARRAY, Array, duplicate, varray());
 
 	ADDFUNC0(POOL_BYTE_ARRAY, INT, PoolByteArray, size, varray());
 	ADDFUNC2(POOL_BYTE_ARRAY, NIL, PoolByteArray, set, INT, "idx", INT, "byte", varray());
@@ -1623,7 +1623,7 @@ void register_variant_methods() {
 	ADDFUNC2(POOL_STRING_ARRAY, INT, PoolStringArray, insert, INT, "idx", STRING, "string", varray());
 	ADDFUNC1(POOL_STRING_ARRAY, NIL, PoolStringArray, resize, INT, "idx", varray());
 	ADDFUNC0(POOL_STRING_ARRAY, NIL, PoolStringArray, invert, varray());
-	ADDFUNC1(POOL_STRING_ARRAY, STRING, PoolStringArray, join, STRING, "string", varray());
+	ADDFUNC1(POOL_STRING_ARRAY, STRING, PoolStringArray, join, STRING, "delimiter", varray());
 
 	ADDFUNC0(POOL_VECTOR2_ARRAY, INT, PoolVector2Array, size, varray());
 	ADDFUNC2(POOL_VECTOR2_ARRAY, NIL, PoolVector2Array, set, INT, "idx", VECTOR2, "vector2", varray());
@@ -1691,7 +1691,7 @@ void register_variant_methods() {
 	ADDFUNC1(TRANSFORM2D, TRANSFORM2D, Transform2D, xform_inv, NIL, "v", varray());
 	ADDFUNC1(TRANSFORM2D, TRANSFORM2D, Transform2D, basis_xform, NIL, "v", varray());
 	ADDFUNC1(TRANSFORM2D, TRANSFORM2D, Transform2D, basis_xform_inv, NIL, "v", varray());
-	ADDFUNC2(TRANSFORM2D, TRANSFORM2D, Transform2D, interpolate_with, TRANSFORM2D, "m", REAL, "c", varray());
+	ADDFUNC2(TRANSFORM2D, TRANSFORM2D, Transform2D, interpolate_with, TRANSFORM2D, "transform", REAL, "weight", varray());
 
 	ADDFUNC0(BASIS, BASIS, Basis, inverse, varray());
 	ADDFUNC0(BASIS, BASIS, Basis, transposed, varray());
@@ -1699,9 +1699,6 @@ void register_variant_methods() {
 	ADDFUNC0(BASIS, REAL, Basis, determinant, varray());
 	ADDFUNC2(BASIS, BASIS, Basis, rotated, VECTOR3, "axis", REAL, "phi", varray());
 	ADDFUNC1(BASIS, BASIS, Basis, scaled, VECTOR3, "scale", varray());
-	ADDFUNC1(BASIS, NIL, Basis, set_scale, VECTOR3, "scale", varray());
-	ADDFUNC1(BASIS, NIL, Basis, set_rotation_euler, VECTOR3, "euler", varray());
-	ADDFUNC2(BASIS, NIL, Basis, set_rotation_axis_angle, VECTOR3, "axis", REAL, "angle", varray());
 	ADDFUNC0(BASIS, VECTOR3, Basis, get_scale, varray());
 	ADDFUNC0(BASIS, VECTOR3, Basis, get_euler, varray());
 	ADDFUNC1(BASIS, REAL, Basis, tdotx, VECTOR3, "with", varray());
@@ -1718,6 +1715,7 @@ void register_variant_methods() {
 	ADDFUNC1(TRANSFORM, TRANSFORM, Transform, scaled, VECTOR3, "scale", varray());
 	ADDFUNC1(TRANSFORM, TRANSFORM, Transform, translated, VECTOR3, "ofs", varray());
 	ADDFUNC2(TRANSFORM, TRANSFORM, Transform, looking_at, VECTOR3, "target", VECTOR3, "up", varray());
+	ADDFUNC2(TRANSFORM, TRANSFORM, Transform, interpolate_with, TRANSFORM, "transform", REAL, "weight", varray());
 	ADDFUNC1(TRANSFORM, NIL, Transform, xform, NIL, "v", varray());
 	ADDFUNC1(TRANSFORM, NIL, Transform, xform_inv, NIL, "v", varray());
 

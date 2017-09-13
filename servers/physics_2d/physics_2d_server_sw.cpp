@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -130,9 +130,12 @@ void Physics2DServerSW::_shape_col_cbk(const Vector2 &p_point_A, const Vector2 &
 
 	if (cbk->valid_dir != Vector2()) {
 		if (p_point_A.distance_squared_to(p_point_B) > cbk->valid_depth * cbk->valid_depth) {
+			cbk->invalid_by_dir++;
 			return;
 		}
 		if (cbk->valid_dir.dot((p_point_A - p_point_B).normalized()) < 0.7071) {
+			cbk->invalid_by_dir++;
+			;
 			/*			print_line("A: "+p_point_A);
 			print_line("B: "+p_point_B);
 			print_line("discard too angled "+rtos(cbk->valid_dir.dot((p_point_A-p_point_B))));
@@ -722,11 +725,11 @@ uint32_t Physics2DServerSW::body_get_object_instance_id(RID p_body) const {
 	return body->get_instance_id();
 };
 
-void Physics2DServerSW::body_set_collision_layer(RID p_body, uint32_t p_flags) {
+void Physics2DServerSW::body_set_collision_layer(RID p_body, uint32_t p_layer) {
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
-	body->set_collision_layer(p_flags);
+	body->set_collision_layer(p_layer);
 };
 
 uint32_t Physics2DServerSW::body_get_collision_layer(RID p_body) const {
@@ -737,11 +740,11 @@ uint32_t Physics2DServerSW::body_get_collision_layer(RID p_body) const {
 	return body->get_collision_layer();
 };
 
-void Physics2DServerSW::body_set_collision_mask(RID p_body, uint32_t p_flags) {
+void Physics2DServerSW::body_set_collision_mask(RID p_body, uint32_t p_mask) {
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
-	body->set_collision_mask(p_flags);
+	body->set_collision_mask(p_mask);
 };
 
 uint32_t Physics2DServerSW::body_get_collision_mask(RID p_body) const {

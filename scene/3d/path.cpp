@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -28,32 +28,16 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 #include "path.h"
+
+#include "engine.h"
 #include "scene/scene_string_names.h"
 
 void Path::_notification(int p_what) {
-#if 0
-	if (p_what==NOTIFICATION_DRAW && curve.is_valid() && is_inside_scene() && get_scene()->is_editor_hint()) {
-		//draw the curve!!
-
-		for(int i=0;i<curve->get_point_count();i++) {
-
-			Vector2 prev_p=curve->get_point_pos(i);
-
-			for(int j=1;j<=8;j++) {
-
-				real_t frac = j/8.0;
-				Vector2 p = curve->interpolate(i,frac);
-				draw_line(prev_p,p,Color(0.5,0.6,1.0,0.7),2);
-				prev_p=p;
-			}
-		}
-	}
-#endif
 }
 
 void Path::_curve_changed() {
 
-	if (is_inside_tree() && get_tree()->is_editor_hint())
+	if (is_inside_tree() && Engine::get_singleton()->is_editor_hint())
 		update_gizmo();
 }
 
@@ -171,8 +155,7 @@ void PathFollow::_notification(int p_what) {
 
 			Node *parent = get_parent();
 			if (parent) {
-
-				path = parent->cast_to<Path>();
+				path = Object::cast_to<Path>(parent);
 				if (path) {
 					_update_transform();
 				}
@@ -281,10 +264,10 @@ void PathFollow::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_loop", "loop"), &PathFollow::set_loop);
 	ClassDB::bind_method(D_METHOD("has_loop"), &PathFollow::has_loop);
 
-	BIND_CONSTANT(ROTATION_NONE);
-	BIND_CONSTANT(ROTATION_Y);
-	BIND_CONSTANT(ROTATION_XY);
-	BIND_CONSTANT(ROTATION_XYZ);
+	BIND_ENUM_CONSTANT(ROTATION_NONE);
+	BIND_ENUM_CONSTANT(ROTATION_Y);
+	BIND_ENUM_CONSTANT(ROTATION_XY);
+	BIND_ENUM_CONSTANT(ROTATION_XYZ);
 }
 
 void PathFollow::set_offset(float p_offset) {

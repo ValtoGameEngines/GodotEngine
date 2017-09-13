@@ -3,7 +3,7 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
 /* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
 /* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
@@ -177,7 +177,7 @@ public:
 
 	virtual Size2 get_minimum_size() const;
 
-	void set_expand_to_text_length(bool p_len);
+	void set_expand_to_text_length(bool p_enabled);
 	bool get_expand_to_text_length() const;
 
 	virtual bool is_text_field() const;
@@ -186,5 +186,6 @@ public:
 };
 
 VARIANT_ENUM_CAST(LineEdit::Align);
+VARIANT_ENUM_CAST(LineEdit::MenuItems);
 
 #endif
