@@ -370,10 +370,10 @@ void SpatialMaterial::_update_shader() {
 		case CULL_DISABLED: code += ",cull_disabled"; break;
 	}
 	switch (diffuse_mode) {
+		case DIFFUSE_BURLEY: code += ",diffuse_burley"; break;
 		case DIFFUSE_LAMBERT: code += ",diffuse_lambert"; break;
 		case DIFFUSE_LAMBERT_WRAP: code += ",diffuse_lambert_wrap"; break;
 		case DIFFUSE_OREN_NAYAR: code += ",diffuse_oren_nayar"; break;
-		case DIFFUSE_BURLEY: code += ",diffuse_burley"; break;
 		case DIFFUSE_TOON: code += ",diffuse_toon"; break;
 	}
 	switch (specular_mode) {
@@ -1242,6 +1242,15 @@ Ref<Texture> SpatialMaterial::get_texture(TextureParam p_param) const {
 	return textures[p_param];
 }
 
+Ref<Texture> SpatialMaterial::get_texture_by_name(StringName p_name) const {
+	for (int i = 0; i < (int)SpatialMaterial::TEXTURE_MAX; i++) {
+		TextureParam param = TextureParam(i);
+		if (p_name == shader_names->texture_names[param])
+			return textures[param];
+	}
+	return Ref<Texture>();
+}
+
 void SpatialMaterial::_validate_feature(const String &text, Feature feature, PropertyInfo &property) const {
 	if (property.name.begins_with(text) && property.name != text + "_enabled" && !features[feature]) {
 		property.usage = 0;
@@ -1269,7 +1278,7 @@ void SpatialMaterial::_validate_property(PropertyInfo &property) const {
 		property.usage = 0;
 	}
 
-	if (property.name == "proximity_fade_distacne" && !proximity_fade_enabled) {
+	if (property.name == "proximity_fade_distance" && !proximity_fade_enabled) {
 		property.usage = 0;
 	}
 
@@ -1809,7 +1818,7 @@ void SpatialMaterial::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "vertex_color_is_srgb"), "set_flag", "get_flag", FLAG_SRGB_VERTEX_COLOR);
 
 	ADD_GROUP("Parameters", "params_");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_diffuse_mode", PROPERTY_HINT_ENUM, "Lambert,Lambert Wrap,Oren Nayar,Burley,Toon"), "set_diffuse_mode", "get_diffuse_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_diffuse_mode", PROPERTY_HINT_ENUM, "Burley,Lambert,Lambert Wrap,Oren Nayar,Toon"), "set_diffuse_mode", "get_diffuse_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_specular_mode", PROPERTY_HINT_ENUM, "SchlickGGX,Blinn,Phong,Toon,Disabled"), "set_specular_mode", "get_specular_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_blend_mode", PROPERTY_HINT_ENUM, "Mix,Add,Sub,Mul"), "set_blend_mode", "get_blend_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_cull_mode", PROPERTY_HINT_ENUM, "Back,Front,Disabled"), "set_cull_mode", "get_cull_mode");
@@ -1991,10 +2000,10 @@ void SpatialMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(FLAG_TRIPLANAR_USE_WORLD);
 	BIND_ENUM_CONSTANT(FLAG_MAX);
 
+	BIND_ENUM_CONSTANT(DIFFUSE_BURLEY);
 	BIND_ENUM_CONSTANT(DIFFUSE_LAMBERT);
 	BIND_ENUM_CONSTANT(DIFFUSE_LAMBERT_WRAP);
 	BIND_ENUM_CONSTANT(DIFFUSE_OREN_NAYAR);
-	BIND_ENUM_CONSTANT(DIFFUSE_BURLEY);
 	BIND_ENUM_CONSTANT(DIFFUSE_TOON);
 
 	BIND_ENUM_CONSTANT(SPECULAR_SCHLICK_GGX);

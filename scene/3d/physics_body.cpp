@@ -870,10 +870,10 @@ void RigidBody::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("body_exited", PropertyInfo(Variant::OBJECT, "body")));
 	ADD_SIGNAL(MethodInfo("sleeping_state_changed"));
 
-	BIND_ENUM_CONSTANT(MODE_STATIC);
-	BIND_ENUM_CONSTANT(MODE_KINEMATIC);
 	BIND_ENUM_CONSTANT(MODE_RIGID);
+	BIND_ENUM_CONSTANT(MODE_STATIC);
 	BIND_ENUM_CONSTANT(MODE_CHARACTER);
+	BIND_ENUM_CONSTANT(MODE_KINEMATIC);
 
 	BIND_ENUM_CONSTANT(AXIS_LOCK_DISABLED);
 	BIND_ENUM_CONSTANT(AXIS_LOCK_X);
@@ -960,7 +960,7 @@ bool KinematicBody::move_and_collide(const Vector3 &p_motion, Collision &r_colli
 
 Vector3 KinematicBody::move_and_slide(const Vector3 &p_linear_velocity, const Vector3 &p_floor_direction, float p_slope_stop_min_velocity, int p_max_slides, float p_floor_max_angle) {
 
-	Vector3 motion = (floor_velocity + p_linear_velocity) * get_fixed_process_delta_time();
+	Vector3 motion = (floor_velocity + p_linear_velocity) * get_physics_process_delta_time();
 	Vector3 lv = p_linear_velocity;
 
 	on_floor = false;

@@ -185,10 +185,10 @@ public:
 	};
 
 	enum DiffuseMode {
+		DIFFUSE_BURLEY,
 		DIFFUSE_LAMBERT,
 		DIFFUSE_LAMBERT_WRAP,
 		DIFFUSE_OREN_NAYAR,
-		DIFFUSE_BURLEY,
 		DIFFUSE_TOON,
 	};
 
@@ -510,6 +510,8 @@ public:
 
 	void set_texture(TextureParam p_param, const Ref<Texture> &p_texture);
 	Ref<Texture> get_texture(TextureParam p_param) const;
+	// Used only for shader material conversion
+	Ref<Texture> get_texture_by_name(StringName p_name) const;
 
 	void set_feature(Feature p_feature, bool p_enabled);
 	bool get_feature(Feature p_feature) const;

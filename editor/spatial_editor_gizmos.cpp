@@ -298,11 +298,11 @@ void EditorSpatialGizmo::add_handles(const Vector<Vector3> &p_handles, bool p_bi
 	}
 }
 
-void EditorSpatialGizmo::add_solid_box(Ref<Material> &p_material, Vector3 size) {
+void EditorSpatialGizmo::add_solid_box(Ref<Material> &p_material, Vector3 p_size) {
 	ERR_FAIL_COND(!spatial_node);
 
 	CubeMesh cubem;
-	cubem.set_size(size);
+	cubem.set_size(p_size);
 	Ref<ArrayMesh> m = memnew(ArrayMesh);
 	m->add_surface_from_arrays(cubem.surface_get_primitive_type(0), cubem.surface_get_arrays(0));
 	m->surface_set_material(0, p_material);
@@ -744,7 +744,7 @@ static float _find_closest_angle_to_half_pi_arc(const Vector3 &p_from, const Vec
 	}
 
 	//min_p = p_arc_xform.affine_inverse().xform(min_p);
-	float a = Vector2(min_p.x, -min_p.z).angle();
+	float a = (Math_PI * 0.5) - Vector2(min_p.x, -min_p.z).angle();
 	return a * 180.0 / Math_PI;
 }
 
@@ -893,7 +893,7 @@ void LightSpatialGizmo::redraw() {
 
 	if (Object::cast_to<SpotLight>(light)) {
 
-		Ref<Material> material = create_material("light_spot_material", gizmo_color, true);
+		Ref<Material> material = create_material("light_spot_material", gizmo_color);
 		Ref<Material> icon = create_icon_material("light_spot_icon", SpatialEditor::get_singleton()->get_icon("GizmoSpotLight", "EditorIcons"));
 
 		clear();

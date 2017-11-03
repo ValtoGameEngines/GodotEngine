@@ -45,6 +45,7 @@
 #include "input_map.h"
 #include "io/resource_loader.h"
 #include "scene/main/scene_tree.h"
+#include "servers/arvr_server.h"
 #include "servers/audio_server.h"
 
 #include "io/resource_loader.h"
@@ -82,6 +83,7 @@ static InputMap *input_map = NULL;
 static bool _start_success = false;
 static ScriptDebugger *script_debugger = NULL;
 AudioServer *audio_server = NULL;
+ARVRServer *arvr_server = NULL;
 
 static MessageQueue *message_queue = NULL;
 static Performance *performance = NULL;
@@ -162,6 +164,7 @@ void Main::print_help(const char *p_binary) {
 #endif
 	OS::get_singleton()->print("  -l, --language <locale>          Use a specific locale (<locale> being a two-letter code).\n");
 	OS::get_singleton()->print("  --path <directory>               Path to a project (<directory> must contain a 'project.godot' file).\n");
+	OS::get_singleton()->print("  -u, --upwards                    Scan folders upwards for project.godot file.\n");
 	OS::get_singleton()->print("  --main-pack <file>               Path to a pack (.pck) file to load.\n");
 	OS::get_singleton()->print("  --render-thread <mode>           Render thread mode ('unsafe', 'safe', 'separate').\n");
 	OS::get_singleton()->print("  --remote-fs <address>            Remote filesystem (<host/IP>[:<port>] address).\n");
@@ -231,7 +234,6 @@ void Main::print_help(const char *p_binary) {
 }
 
 Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_phase) {
-
 	RID_OwnerBase::init_rid();
 
 	OS::get_singleton()->initialize_core();
@@ -254,8 +256,11 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	register_core_settings(); //here globals is present
 
+	OS::get_singleton()->initialize_logger();
+
 	translation_server = memnew(TranslationServer);
 	performance = memnew(Performance);
+	ClassDB::register_class<Performance>();
 	globals->add_singleton(ProjectSettings::Singleton("Performance", performance));
 
 	GLOBAL_DEF("debug/settings/crash_handler/message", String("Please include this when reporting the bug on https://github.com/godotengine/godot/issues"));
@@ -288,6 +293,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	String video_driver = "";
 	String audio_driver = "";
 	String game_path = ".";
+	bool upwards = false;
 	String debug_mode;
 	String debug_host;
 	String main_pack;
@@ -496,6 +502,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 				OS::get_singleton()->print("Missing relative or absolute path, aborting.\n");
 				goto error;
 			}
+		} else if (I->get() == "-u" || I->get() == "--upwards") { // scan folders upwards
+			upwards = true;
 		} else if (I->get().ends_with("project.godot")) {
 			String path;
 			String file = I->get();
@@ -693,7 +701,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 #endif
 
-	if (globals->setup(game_path, main_pack) != OK) {
+	if (globals->setup(game_path, main_pack, upwards) != OK) {
 
 #ifdef TOOLS_ENABLED
 		editor = false;
@@ -725,7 +733,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 #ifdef TOOLS_ENABLED
 
-	if (main_args.size() == 0 && (!ProjectSettings::get_singleton()->has("application/run/main_loop_type")) && (!ProjectSettings::get_singleton()->has("application/run/main_scene") || String(ProjectSettings::get_singleton()->get("application/run/main_scene")) == ""))
+	if (main_args.size() == 0 && (!ProjectSettings::get_singleton()->has_setting("application/run/main_loop_type")) && (!ProjectSettings::get_singleton()->has_setting("application/run/main_scene") || String(ProjectSettings::get_singleton()->get("application/run/main_scene")) == ""))
 		use_custom_res = false; //project manager (run without arguments)
 
 #endif
@@ -738,21 +746,21 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	//if (video_driver == "") // useless for now, so removing
 	//	video_driver = GLOBAL_DEF("display/driver/name", Variant((const char *)OS::get_singleton()->get_video_driver_name(0)));
 
-	if (!force_res && use_custom_res && globals->has("display/window/size/width"))
+	if (!force_res && use_custom_res && globals->has_setting("display/window/size/width"))
 		video_mode.width = globals->get("display/window/size/width");
-	if (!force_res && use_custom_res && globals->has("display/window/size/height"))
+	if (!force_res && use_custom_res && globals->has_setting("display/window/size/height"))
 		video_mode.height = globals->get("display/window/size/height");
-	if (!editor && ((globals->has("display/window/dpi/allow_hidpi") && !globals->get("display/window/dpi/allow_hidpi")) || force_lowdpi)) {
+	if (!editor && ((globals->has_setting("display/window/dpi/allow_hidpi") && !globals->get("display/window/dpi/allow_hidpi")) || force_lowdpi)) {
 		OS::get_singleton()->_allow_hidpi = false;
 	}
-	if (use_custom_res && globals->has("display/window/size/fullscreen"))
+	if (use_custom_res && globals->has_setting("display/window/size/fullscreen"))
 		video_mode.fullscreen = globals->get("display/window/size/fullscreen");
-	if (use_custom_res && globals->has("display/window/size/resizable"))
+	if (use_custom_res && globals->has_setting("display/window/size/resizable"))
 		video_mode.resizable = globals->get("display/window/size/resizable");
-	if (use_custom_res && globals->has("display/window/size/borderless"))
+	if (use_custom_res && globals->has_setting("display/window/size/borderless"))
 		video_mode.borderless_window = globals->get("display/window/size/borderless");
 
-	if (!force_res && use_custom_res && globals->has("display/window/size/test_width") && globals->has("display/window/size/test_height")) {
+	if (!force_res && use_custom_res && globals->has_setting("display/window/size/test_width") && globals->has_setting("display/window/size/test_height")) {
 		int tw = globals->get("display/window/size/test_width");
 		int th = globals->get("display/window/size/test_height");
 		if (tw > 0 && th > 0) {
@@ -773,6 +781,9 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	GLOBAL_DEF("rendering/quality/intended_usage/framebuffer_allocation", 2);
 	GLOBAL_DEF("rendering/quality/intended_usage/framebuffer_allocation.mobile", 3);
 
+	if (editor) {
+		OS::get_singleton()->_allow_hidpi = true; //editors always in hidpi
+	}
 	Engine::get_singleton()->_pixel_snap = GLOBAL_DEF("rendering/quality/2d/use_pixel_snap", false);
 	OS::get_singleton()->_keep_screen_on = GLOBAL_DEF("display/window/energy_saving/keep_screen_on", true);
 	if (rtm == -1) {
@@ -930,10 +941,13 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 		OS::get_singleton()->set_window_position(init_custom_pos);
 	}
 
-	//right moment to create and initialize the audio server
+	// right moment to create and initialize the audio server
 
 	audio_server = memnew(AudioServer);
 	audio_server->init();
+
+	// also init our arvr_server from here
+	arvr_server = memnew(ARVRServer);
 
 	OS::get_singleton()->set_use_vsync(use_vsync);
 
@@ -1336,7 +1350,7 @@ bool Main::start() {
 			String stretch_mode = GLOBAL_DEF("display/window/stretch/mode", "disabled");
 			String stretch_aspect = GLOBAL_DEF("display/window/stretch/aspect", "ignore");
 			Size2i stretch_size = Size2(GLOBAL_DEF("display/window/size/width", 0), GLOBAL_DEF("display/window/size/height", 0));
-			int stretch_shrink = GLOBAL_DEF("display/window/stretch/shrink", 1);
+			real_t stretch_shrink = GLOBAL_DEF("display/window/stretch/shrink", 1.0f);
 
 			SceneTree::StretchMode sml_sm = SceneTree::STRETCH_MODE_DISABLED;
 			if (stretch_mode == "2d")
@@ -1574,7 +1588,7 @@ uint32_t Main::frame = 0;
 bool Main::force_redraw_requested = false;
 
 //for performance metrics
-static uint64_t fixed_process_max = 0;
+static uint64_t physics_process_max = 0;
 static uint64_t idle_process_max = 0;
 
 bool Main::iteration() {
@@ -1597,7 +1611,7 @@ bool Main::iteration() {
 		return false;
 	*/
 
-	uint64_t fixed_process_ticks = 0;
+	uint64_t physics_process_ticks = 0;
 	uint64_t idle_process_ticks = 0;
 
 	frame += ticks_elapsed;
@@ -1615,11 +1629,11 @@ bool Main::iteration() {
 
 	int iters = 0;
 
-	Engine::get_singleton()->_in_fixed = true;
+	Engine::get_singleton()->_in_physics = true;
 
 	while (time_accum > frame_slice) {
 
-		uint64_t fixed_begin = OS::get_singleton()->get_ticks_usec();
+		uint64_t physics_begin = OS::get_singleton()->get_ticks_usec();
 
 		PhysicsServer::get_singleton()->sync();
 		PhysicsServer::get_singleton()->flush_queries();
@@ -1642,13 +1656,13 @@ bool Main::iteration() {
 		time_accum -= frame_slice;
 		message_queue->flush();
 
-		fixed_process_ticks = MAX(fixed_process_ticks, OS::get_singleton()->get_ticks_usec() - fixed_begin); // keep the largest one for reference
-		fixed_process_max = MAX(OS::get_singleton()->get_ticks_usec() - fixed_begin, fixed_process_max);
+		physics_process_ticks = MAX(physics_process_ticks, OS::get_singleton()->get_ticks_usec() - physics_begin); // keep the largest one for reference
+		physics_process_max = MAX(OS::get_singleton()->get_ticks_usec() - physics_begin, physics_process_max);
 		iters++;
-		Engine::get_singleton()->_fixed_frames++;
+		Engine::get_singleton()->_physics_frames++;
 	}
 
-	Engine::get_singleton()->_in_fixed = false;
+	Engine::get_singleton()->_in_physics = false;
 
 	uint64_t idle_begin = OS::get_singleton()->get_ticks_usec();
 
@@ -1684,7 +1698,7 @@ bool Main::iteration() {
 
 	if (script_debugger) {
 		if (script_debugger->is_profiling()) {
-			script_debugger->profiling_set_frame_times(USEC_TO_SEC(frame_time), USEC_TO_SEC(idle_process_ticks), USEC_TO_SEC(fixed_process_ticks), frame_slice);
+			script_debugger->profiling_set_frame_times(USEC_TO_SEC(frame_time), USEC_TO_SEC(idle_process_ticks), USEC_TO_SEC(physics_process_ticks), frame_slice);
 		}
 		script_debugger->idle_poll();
 	}
@@ -1700,9 +1714,9 @@ bool Main::iteration() {
 
 		Engine::get_singleton()->_fps = frames;
 		performance->set_process_time(USEC_TO_SEC(idle_process_max));
-		performance->set_fixed_process_time(USEC_TO_SEC(fixed_process_max));
+		performance->set_physics_process_time(USEC_TO_SEC(physics_process_max));
 		idle_process_max = 0;
-		fixed_process_max = 0;
+		physics_process_max = 0;
 
 		frame %= 1000000;
 		frames = 0;
@@ -1764,6 +1778,11 @@ void Main::cleanup() {
 	if (audio_server) {
 		audio_server->finish();
 		memdelete(audio_server);
+	}
+
+	if (arvr_server) {
+		// cleanup now before we pull the rug from underneath...
+		memdelete(arvr_server);
 	}
 
 	unregister_driver_types();

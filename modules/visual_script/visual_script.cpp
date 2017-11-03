@@ -125,6 +125,7 @@ void VisualScriptNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_visual_script"), &VisualScriptNode::get_visual_script);
 	ClassDB::bind_method(D_METHOD("set_default_input_value", "port_idx", "value"), &VisualScriptNode::set_default_input_value);
 	ClassDB::bind_method(D_METHOD("get_default_input_value", "port_idx"), &VisualScriptNode::get_default_input_value);
+	ClassDB::bind_method(D_METHOD("ports_changed_notify"), &VisualScriptNode::ports_changed_notify);
 	ClassDB::bind_method(D_METHOD("_set_default_input_values", "values"), &VisualScriptNode::_set_default_input_values);
 	ClassDB::bind_method(D_METHOD("_get_default_input_values"), &VisualScriptNode::_get_default_input_values);
 
@@ -971,11 +972,6 @@ Error VisualScript::reload(bool p_keep_state) {
 bool VisualScript::is_tool() const {
 
 	return false;
-}
-
-String VisualScript::get_node_type() const {
-
-	return String();
 }
 
 ScriptLanguage *VisualScript::get_language() const {
@@ -2008,8 +2004,8 @@ void VisualScriptInstance::create(const Ref<VisualScript> &p_script, Object *p_o
 		Node *node = Object::cast_to<Node>(p_owner);
 		if (p_script->functions.has("_process"))
 			node->set_process(true);
-		if (p_script->functions.has("_fixed_process"))
-			node->set_fixed_process(true);
+		if (p_script->functions.has("_physics_process"))
+			node->set_physics_process(true);
 		if (p_script->functions.has("_input"))
 			node->set_process_input(true);
 		if (p_script->functions.has("_unhandled_input"))
@@ -2410,6 +2406,10 @@ Script *VisualScriptLanguage::create_script() const {
 bool VisualScriptLanguage::has_named_classes() const {
 
 	return false;
+}
+bool VisualScriptLanguage::supports_builtin_mode() const {
+
+	return true;
 }
 int VisualScriptLanguage::find_function(const String &p_function, const String &p_code) const {
 
