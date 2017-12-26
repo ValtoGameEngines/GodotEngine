@@ -75,10 +75,9 @@ bool EditorSettings::_set(const StringName &p_name, const Variant &p_value, bool
 		return true;
 	}
 
-	if (p_value.get_type() == Variant::NIL)
+	if (p_value.get_type() == Variant::NIL) {
 		props.erase(p_name);
-	else {
-
+	} else {
 		if (props.has(p_name))
 			props[p_name].variant = p_value;
 		else
@@ -135,6 +134,7 @@ bool EditorSettings::_get(const StringName &p_name, Variant &r_ret) const {
 void EditorSettings::_initial_set(const StringName &p_name, const Variant &p_value) {
 	set(p_name, p_value);
 	props[p_name].initial = p_value;
+	props[p_name].has_default_value = true;
 }
 
 struct _EVCSort {
@@ -214,6 +214,14 @@ void EditorSettings::_add_property_info_bind(const Dictionary &p_info) {
 }
 
 // Default configs
+bool EditorSettings::has_default_value(const String &p_setting) const {
+
+	_THREAD_SAFE_METHOD_
+
+	if (!props.has(p_setting))
+		return false;
+	return props[p_setting].has_default_value;
+}
 
 void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 
@@ -250,7 +258,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 
 	_initial_set("interface/editor/hidpi_mode", 0);
 	hints["interface/editor/hidpi_mode"] = PropertyInfo(Variant::INT, "interface/editor/hidpi_mode", PROPERTY_HINT_ENUM, "Auto,VeryLoDPI,LoDPI,MidDPI,HiDPI", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED);
-	_initial_set("interface/editor/show_script_in_scene_tabs", false);
+	_initial_set("interface/scene_tabs/show_script_button", false);
 	_initial_set("interface/editor/font_size", 14);
 	hints["interface/editor/font_size"] = PropertyInfo(Variant::INT, "interface/editor/font_size", PROPERTY_HINT_RANGE, "10,40,1", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED);
 	_initial_set("interface/editor/source_font_size", 14);
@@ -298,8 +306,8 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	_initial_set("filesystem/directories/default_project_path", OS::get_singleton()->has_environment("HOME") ? OS::get_singleton()->get_environment("HOME") : OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DOCUMENTS));
 	hints["filesystem/directories/default_project_path"] = PropertyInfo(Variant::STRING, "filesystem/directories/default_project_path", PROPERTY_HINT_GLOBAL_DIR);
 	_initial_set("filesystem/directories/default_project_export_path", "");
-	hints["global/default_project_export_path"] = PropertyInfo(Variant::STRING, "global/default_project_export_path", PROPERTY_HINT_GLOBAL_DIR);
-	_initial_set("interface/editor/show_script_in_scene_tabs", false);
+	hints["filesystem/directories/default_project_export_path"] = PropertyInfo(Variant::STRING, "filesystem/directories/default_project_export_path", PROPERTY_HINT_GLOBAL_DIR);
+	_initial_set("interface/scene_tabs/show_script_button", false);
 
 	_initial_set("text_editor/theme/color_theme", "Adaptive");
 	hints["text_editor/theme/color_theme"] = PropertyInfo(Variant::STRING, "text_editor/theme/color_theme", PROPERTY_HINT_ENUM, "Adaptive,Default");
@@ -325,6 +333,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	_initial_set("text_editor/line_numbers/show_line_numbers", true);
 	_initial_set("text_editor/line_numbers/line_numbers_zero_padded", false);
 	_initial_set("text_editor/line_numbers/show_breakpoint_gutter", true);
+	_initial_set("text_editor/line_numbers/code_folding", true);
 	_initial_set("text_editor/line_numbers/show_line_length_guideline", false);
 	_initial_set("text_editor/line_numbers/line_length_guideline_column", 80);
 	hints["text_editor/line_numbers/line_length_guideline_column"] = PropertyInfo(Variant::INT, "text_editor/line_numbers/line_length_guideline_column", PROPERTY_HINT_RANGE, "20, 160, 10");
@@ -339,9 +348,10 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	_initial_set("text_editor/files/autosave_interval_secs", 0);
 
 	_initial_set("text_editor/cursor/block_caret", false);
-	_initial_set("text_editor/cursor/caret_blink", false);
+	_initial_set("text_editor/cursor/caret_blink", true);
 	_initial_set("text_editor/cursor/caret_blink_speed", 0.65);
 	hints["text_editor/cursor/caret_blink_speed"] = PropertyInfo(Variant::REAL, "text_editor/cursor/caret_blink_speed", PROPERTY_HINT_RANGE, "0.1, 10, 0.1");
+	_initial_set("text_editor/cursor/right_click_moves_caret", true);
 
 	_initial_set("text_editor/theme/font", "");
 	hints["text_editor/theme/font"] = PropertyInfo(Variant::STRING, "text_editor/theme/font", PROPERTY_HINT_GLOBAL_FILE, "*.font,*.tres,*.res");
@@ -360,8 +370,8 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	_initial_set("editors/3d/grid_color", Color::html("808080"));
 	hints["editors/3d/grid_color"] = PropertyInfo(Variant::COLOR, "editors/3d/grid_color", PROPERTY_HINT_COLOR_NO_ALPHA, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_RESTART_IF_CHANGED);
 
-	_initial_set("editors/3d/default_fov", 55.0);
-	_initial_set("editors/3d/default_z_near", 0.1);
+	_initial_set("editors/3d/default_fov", 70.0);
+	_initial_set("editors/3d/default_z_near", 0.05);
 	_initial_set("editors/3d/default_z_far", 500.0);
 
 	// navigation
@@ -407,6 +417,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	hints["editors/3d/freelook/freelook_modifier_speed_factor"] = PropertyInfo(Variant::REAL, "editors/3d/freelook/freelook_modifier_speed_factor", PROPERTY_HINT_RANGE, "0.0, 10.0, 0.1");
 	_initial_set("editors/3d/freelook/freelook_speed_zoom_link", false);
 
+	_initial_set("editors/2d/guides_color", Color(0.6, 0.0, 0.8));
 	_initial_set("editors/2d/bone_width", 5);
 	_initial_set("editors/2d/bone_color1", Color(1.0, 1.0, 1.0, 0.9));
 	_initial_set("editors/2d/bone_color2", Color(0.75, 0.75, 0.75, 0.9));
@@ -414,6 +425,7 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 	_initial_set("editors/2d/bone_ik_color", Color(0.9, 0.9, 0.45, 0.9));
 	_initial_set("editors/2d/keep_margins_when_changing_anchors", false);
 	_initial_set("editors/2d/warped_mouse_panning", true);
+	_initial_set("editors/2d/simple_spacebar_panning", false);
 	_initial_set("editors/2d/scroll_to_pan", false);
 	_initial_set("editors/2d/pan_speed", 20);
 
@@ -451,6 +463,8 @@ void EditorSettings::_load_defaults(Ref<ConfigFile> p_extra_config) {
 
 	_initial_set("editors/animation/autorename_animation_tracks", true);
 	_initial_set("editors/animation/confirm_insert_track", true);
+	_initial_set("editors/animation/onion_layers_past_color", Color(1, 0, 0));
+	_initial_set("editors/animation/onion_layers_future_color", Color(0, 1, 0));
 
 	_initial_set("docks/property_editor/texture_preview_width", 48);
 	_initial_set("docks/property_editor/auto_refresh_interval", 0.3);
@@ -530,6 +544,7 @@ void EditorSettings::_load_default_text_editor_theme() {
 	_initial_set("text_editor/highlighting/line_length_guideline_color", Color(0.3, 0.5, 0.8, 0.1));
 	_initial_set("text_editor/highlighting/mark_color", Color(1.0, 0.4, 0.4, 0.4));
 	_initial_set("text_editor/highlighting/breakpoint_color", Color(0.8, 0.8, 0.4, 0.2));
+	_initial_set("text_editor/highlighting/code_folding_color", Color(0.8, 0.8, 0.8, 0.8));
 	_initial_set("text_editor/highlighting/word_highlighted_color", Color(0.8, 0.9, 0.9, 0.15));
 	_initial_set("text_editor/highlighting/search_result_color", Color(0.05, 0.25, 0.05, 1));
 	_initial_set("text_editor/highlighting/search_result_border_color", Color(0.1, 0.45, 0.1, 1));
@@ -564,6 +579,7 @@ bool EditorSettings::_save_text_editor_theme(String p_file) {
 	cf->set_value(theme_section, "line_length_guideline_color", ((Color)get("text_editor/highlighting/line_length_guideline_color")).to_html());
 	cf->set_value(theme_section, "mark_color", ((Color)get("text_editor/highlighting/mark_color")).to_html());
 	cf->set_value(theme_section, "breakpoint_color", ((Color)get("text_editor/highlighting/breakpoint_color")).to_html());
+	cf->set_value(theme_section, "code_folding_color", ((Color)get("text_editor/highlighting/code_folding_color")).to_html());
 	cf->set_value(theme_section, "word_highlighted_color", ((Color)get("text_editor/highlighting/word_highlighted_color")).to_html());
 	cf->set_value(theme_section, "search_result_color", ((Color)get("text_editor/highlighting/search_result_color")).to_html());
 	cf->set_value(theme_section, "search_result_border_color", ((Color)get("text_editor/highlighting/search_result_border_color")).to_html());
@@ -630,10 +646,14 @@ void EditorSettings::create() {
 		return; //pointless
 
 	DirAccess *dir = NULL;
-	Variant meta;
 
+	String data_path;
+	String data_dir;
 	String config_path;
 	String config_dir;
+	String cache_path;
+	String cache_dir;
+
 	Ref<ConfigFile> extra_config = memnew(ConfigFile);
 
 	String exe_path = OS::get_singleton()->get_executable_path().get_base_dir();
@@ -650,28 +670,80 @@ void EditorSettings::create() {
 	memdelete(d);
 
 	if (self_contained) {
-		// editor is self contained
+
+		// editor is self contained, all in same folder
+		data_path = exe_path;
+		data_dir = data_path.plus_file("editor_data");
 		config_path = exe_path;
-		config_dir = "editor_data";
+		config_dir = data_dir;
+		cache_path = exe_path;
+		cache_dir = data_dir.plus_file("cache");
 	} else {
 
-		if (OS::get_singleton()->has_environment("APPDATA")) {
-			// Most likely under windows, save here
-			config_path = OS::get_singleton()->get_environment("APPDATA");
-			config_dir = String(_MKSTR(VERSION_SHORT_NAME)).capitalize();
-		} else if (OS::get_singleton()->has_environment("HOME")) {
-
-			config_path = OS::get_singleton()->get_environment("HOME");
-			config_dir = "." + String(_MKSTR(VERSION_SHORT_NAME)).to_lower();
+		// Typically XDG_DATA_HOME or %APPDATA%
+		data_path = OS::get_singleton()->get_data_path();
+		data_dir = data_path.plus_file(OS::get_singleton()->get_godot_dir_name());
+		// Can be different from data_path e.g. on Linux or macOS
+		config_path = OS::get_singleton()->get_config_path();
+		config_dir = config_path.plus_file(OS::get_singleton()->get_godot_dir_name());
+		// Can be different from above paths, otherwise a subfolder of data_dir
+		cache_path = OS::get_singleton()->get_cache_path();
+		if (cache_path == data_path) {
+			cache_dir = data_dir.plus_file("cache");
+		} else {
+			cache_dir = cache_path.plus_file(OS::get_singleton()->get_godot_dir_name());
 		}
-	};
+	}
 
 	ClassDB::register_class<EditorSettings>(); //otherwise it can't be unserialized
+
 	String config_file_path;
 
-	if (config_path != "") {
+	if (data_path != "" && config_path != "" && cache_path != "") {
+
+		// Validate/create data dir and subdirectories
 
 		dir = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+		if (dir->change_dir(data_path) != OK) {
+			ERR_PRINT("Cannot find path for data directory!");
+			memdelete(dir);
+			goto fail;
+		}
+
+		if (dir->change_dir(data_dir) != OK) {
+			dir->make_dir(data_dir);
+			if (dir->change_dir(data_dir) != OK) {
+				ERR_PRINT("Cannot create data directory!");
+				memdelete(dir);
+				goto fail;
+			}
+		}
+
+		if (dir->change_dir("templates") != OK) {
+			dir->make_dir("templates");
+		} else {
+			dir->change_dir("..");
+		}
+
+		// Validate/create cache dir
+
+		if (dir->change_dir(cache_path) != OK) {
+			ERR_PRINT("Cannot find path for cache directory!");
+			memdelete(dir);
+			goto fail;
+		}
+
+		if (dir->change_dir(cache_dir) != OK) {
+			dir->make_dir(cache_dir);
+			if (dir->change_dir(cache_dir) != OK) {
+				ERR_PRINT("Cannot create cache directory!");
+				memdelete(dir);
+				goto fail;
+			}
+		}
+
+		// Validate/create config dir and subdirectories
+
 		if (dir->change_dir(config_path) != OK) {
 			ERR_PRINT("Cannot find path for config directory!");
 			memdelete(dir);
@@ -687,13 +759,6 @@ void EditorSettings::create() {
 			}
 		}
 
-		if (dir->change_dir("templates") != OK) {
-			dir->make_dir("templates");
-		} else {
-
-			dir->change_dir("..");
-		}
-
 		if (dir->change_dir("text_editor_themes") != OK) {
 			dir->make_dir("text_editor_themes");
 		} else {
@@ -705,52 +770,40 @@ void EditorSettings::create() {
 		} else {
 			dir->change_dir("..");
 		}
-		_create_script_templates(dir->get_current_dir() + "/script_templates");
+		_create_script_templates(dir->get_current_dir().plus_file("script_templates"));
 
-		if (dir->change_dir("tmp") != OK) {
-			dir->make_dir("tmp");
-		} else {
-
-			dir->change_dir("..");
-		}
-
-		if (dir->change_dir("config") != OK) {
-			dir->make_dir("config");
-		} else {
-
-			dir->change_dir("..");
-		}
-
-		dir->change_dir("config");
-
-		String pcp = ProjectSettings::get_singleton()->get_resource_path();
-		if (pcp.ends_with("/"))
-			pcp = config_path.substr(0, pcp.size() - 1);
-		pcp = pcp.get_file() + "-" + pcp.md5_text();
-
-		if (dir->change_dir(pcp)) {
-			dir->make_dir(pcp);
+		if (dir->change_dir("projects") != OK) {
+			dir->make_dir("projects");
 		} else {
 			dir->change_dir("..");
 		}
 
+		// Validate/create project-specific config dir
+
+		dir->change_dir("projects");
+		String project_config_dir = ProjectSettings::get_singleton()->get_resource_path();
+		if (project_config_dir.ends_with("/"))
+			project_config_dir = config_path.substr(0, project_config_dir.size() - 1);
+		project_config_dir = project_config_dir.get_file() + "-" + project_config_dir.md5_text();
+
+		if (dir->change_dir(project_config_dir) != OK) {
+			dir->make_dir(project_config_dir);
+		} else {
+			dir->change_dir("..");
+		}
 		dir->change_dir("..");
 
-		// path at least is validated, so validate config file
+		// Validate editor config file
 
-		String config_file_name = "editor_settings-" + String(_MKSTR(VERSION_MAJOR)) + ".tres";
-		config_file_path = config_path + "/" + config_dir + "/" + config_file_name;
-
-		String open_path = config_file_path;
-
+		String config_file_name = "editor_settings-" + itos(VERSION_MAJOR) + ".tres";
+		config_file_path = config_dir.plus_file(config_file_name);
 		if (!dir->file_exists(config_file_name)) {
-
 			goto fail;
 		}
 
 		memdelete(dir);
 
-		singleton = ResourceLoader::load(open_path, "EditorSettings");
+		singleton = ResourceLoader::load(config_file_path, "EditorSettings");
 
 		if (singleton.is_null()) {
 			WARN_PRINT("Could not open config file.");
@@ -759,8 +812,10 @@ void EditorSettings::create() {
 
 		singleton->save_changed_setting = true;
 		singleton->config_file_path = config_file_path;
-		singleton->project_config_path = pcp;
-		singleton->settings_path = config_path + "/" + config_dir;
+		singleton->project_config_dir = project_config_dir;
+		singleton->settings_dir = config_dir;
+		singleton->data_dir = data_dir;
+		singleton->cache_dir = cache_dir;
 
 		if (OS::get_singleton()->is_stdout_verbose()) {
 
@@ -790,7 +845,9 @@ fail:
 	singleton = Ref<EditorSettings>(memnew(EditorSettings));
 	singleton->save_changed_setting = true;
 	singleton->config_file_path = config_file_path;
-	singleton->settings_path = config_path + "/" + config_dir;
+	singleton->settings_dir = config_dir;
+	singleton->data_dir = data_dir;
+	singleton->cache_dir = cache_dir;
 	singleton->_load_defaults(extra_config);
 	singleton->setup_language();
 	singleton->setup_network();
@@ -834,10 +891,10 @@ void EditorSettings::setup_network() {
 		hint += ip;
 	}
 
-	set("network/debug/remote_host", lip);
+	_initial_set("network/debug/remote_host", lip);
 	add_property_hint(PropertyInfo(Variant::STRING, "network/debug/remote_host", PROPERTY_HINT_ENUM, hint));
 
-	set("network/debug/remote_port", port);
+	_initial_set("network/debug/remote_port", port);
 	add_property_hint(PropertyInfo(Variant::INT, "network/debug/remote_port", PROPERTY_HINT_RANGE, "1,65535,1"));
 }
 
@@ -913,18 +970,26 @@ void EditorSettings::raise_order(const String &p_setting) {
 
 void EditorSettings::set_initial_value(const StringName &p_setting, const Variant &p_value) {
 
-	ERR_FAIL_COND(!props.has(p_setting));
+	_THREAD_SAFE_METHOD_
+
+	if (!props.has(p_setting))
+		return;
 	props[p_setting].initial = p_value;
+	props[p_setting].has_default_value = true;
 }
 
 Variant _EDITOR_DEF(const String &p_setting, const Variant &p_default) {
 
+	Variant ret = p_default;
 	if (EditorSettings::get_singleton()->has_setting(p_setting))
-		return EditorSettings::get_singleton()->get(p_setting);
-	EditorSettings::get_singleton()->set(p_setting, p_default);
-	EditorSettings::get_singleton()->set_initial_value(p_setting, p_default);
+		ret = EditorSettings::get_singleton()->get(p_setting);
+	else
+		EditorSettings::get_singleton()->set_manually(p_setting, p_default);
 
-	return p_default;
+	if (!EditorSettings::get_singleton()->has_default_value(p_setting))
+		EditorSettings::get_singleton()->set_initial_value(p_setting, p_default);
+
+	return ret;
 }
 
 Variant _EDITOR_GET(const String &p_setting) {
@@ -938,12 +1003,15 @@ bool EditorSettings::property_can_revert(const String &p_setting) {
 	if (!props.has(p_setting))
 		return false;
 
+	if (!props[p_setting].has_default_value)
+		return false;
+
 	return props[p_setting].initial != props[p_setting].variant;
 }
 
 Variant EditorSettings::property_get_revert(const String &p_setting) {
 
-	if (!props.has(p_setting))
+	if (!props.has(p_setting) || !props[p_setting].has_default_value)
 		return Variant();
 
 	return props[p_setting].initial;
@@ -956,21 +1024,52 @@ void EditorSettings::add_property_hint(const PropertyInfo &p_hint) {
 	hints[p_hint.name] = p_hint;
 }
 
-// Settings paths and saved metadata
+// Data directories
 
-String EditorSettings::get_settings_path() const {
+String EditorSettings::get_data_dir() const {
 
-	return settings_path;
+	return data_dir;
 }
 
-String EditorSettings::get_project_settings_path() const {
+String EditorSettings::get_templates_dir() const {
 
-	return get_settings_path().plus_file("config").plus_file(project_config_path);
+	return get_data_dir().plus_file("templates");
 }
+
+// Config directories
+
+String EditorSettings::get_settings_dir() const {
+
+	return settings_dir;
+}
+
+String EditorSettings::get_project_settings_dir() const {
+
+	return get_settings_dir().plus_file("projects").plus_file(project_config_dir);
+}
+
+String EditorSettings::get_text_editor_themes_dir() const {
+
+	return get_settings_dir().plus_file("text_editor_themes");
+}
+
+String EditorSettings::get_script_templates_dir() const {
+
+	return get_settings_dir().plus_file("script_templates");
+}
+
+// Cache directory
+
+String EditorSettings::get_cache_dir() const {
+
+	return cache_dir;
+}
+
+// Metadata
 
 void EditorSettings::set_project_metadata(const String &p_section, const String &p_key, Variant p_data) {
 	Ref<ConfigFile> cf = memnew(ConfigFile);
-	String path = get_project_settings_path().plus_file("project_metadata.cfg");
+	String path = get_project_settings_dir().plus_file("project_metadata.cfg");
 	cf->load(path);
 	cf->set_value(p_section, p_key, p_data);
 	cf->save(path);
@@ -978,7 +1077,7 @@ void EditorSettings::set_project_metadata(const String &p_section, const String 
 
 Variant EditorSettings::get_project_metadata(const String &p_section, const String &p_key, Variant p_default) {
 	Ref<ConfigFile> cf = memnew(ConfigFile);
-	String path = get_project_settings_path().plus_file("project_metadata.cfg");
+	String path = get_project_settings_dir().plus_file("project_metadata.cfg");
 	Error err = cf->load(path);
 	if (err != OK) {
 		return p_default;
@@ -989,7 +1088,7 @@ Variant EditorSettings::get_project_metadata(const String &p_section, const Stri
 void EditorSettings::set_favorite_dirs(const Vector<String> &p_favorites_dirs) {
 
 	favorite_dirs = p_favorites_dirs;
-	FileAccess *f = FileAccess::open(get_project_settings_path().plus_file("favorite_dirs"), FileAccess::WRITE);
+	FileAccess *f = FileAccess::open(get_project_settings_dir().plus_file("favorite_dirs"), FileAccess::WRITE);
 	if (f) {
 		for (int i = 0; i < favorite_dirs.size(); i++)
 			f->store_line(favorite_dirs[i]);
@@ -1005,7 +1104,7 @@ Vector<String> EditorSettings::get_favorite_dirs() const {
 void EditorSettings::set_recent_dirs(const Vector<String> &p_recent_dirs) {
 
 	recent_dirs = p_recent_dirs;
-	FileAccess *f = FileAccess::open(get_project_settings_path().plus_file("recent_dirs"), FileAccess::WRITE);
+	FileAccess *f = FileAccess::open(get_project_settings_dir().plus_file("recent_dirs"), FileAccess::WRITE);
 	if (f) {
 		for (int i = 0; i < recent_dirs.size(); i++)
 			f->store_line(recent_dirs[i]);
@@ -1020,7 +1119,7 @@ Vector<String> EditorSettings::get_recent_dirs() const {
 
 void EditorSettings::load_favorites() {
 
-	FileAccess *f = FileAccess::open(get_project_settings_path().plus_file("favorite_dirs"), FileAccess::READ);
+	FileAccess *f = FileAccess::open(get_project_settings_dir().plus_file("favorite_dirs"), FileAccess::READ);
 	if (f) {
 		String line = f->get_line().strip_edges();
 		while (line != "") {
@@ -1030,7 +1129,7 @@ void EditorSettings::load_favorites() {
 		memdelete(f);
 	}
 
-	f = FileAccess::open(get_project_settings_path().plus_file("recent_dirs"), FileAccess::READ);
+	f = FileAccess::open(get_project_settings_dir().plus_file("recent_dirs"), FileAccess::READ);
 	if (f) {
 		String line = f->get_line().strip_edges();
 		while (line != "") {
@@ -1043,7 +1142,7 @@ void EditorSettings::load_favorites() {
 
 void EditorSettings::list_text_editor_themes() {
 	String themes = "Adaptive,Default";
-	DirAccess *d = DirAccess::open(get_settings_path().plus_file("text_editor_themes"));
+	DirAccess *d = DirAccess::open(get_text_editor_themes_dir());
 	if (d) {
 		d->list_dir_begin();
 		String file = d->get_next();
@@ -1065,7 +1164,7 @@ void EditorSettings::load_text_editor_theme() {
 		return;
 	}
 
-	String theme_path = get_settings_path().plus_file("text_editor_themes").plus_file((String)get("text_editor/theme/color_theme") + ".tet");
+	String theme_path = get_text_editor_themes_dir().plus_file((String)get("text_editor/theme/color_theme") + ".tet");
 
 	Ref<ConfigFile> cf = memnew(ConfigFile);
 	Error err = cf->load(theme_path);
@@ -1103,9 +1202,9 @@ bool EditorSettings::import_text_editor_theme(String p_file) {
 			return false;
 		}
 
-		DirAccess *d = DirAccess::open(get_settings_path().plus_file("text_editor_themes"));
+		DirAccess *d = DirAccess::open(get_text_editor_themes_dir());
 		if (d) {
-			d->copy(p_file, get_settings_path().plus_file("text_editor_themes").plus_file(p_file.get_file()));
+			d->copy(p_file, get_text_editor_themes_dir().plus_file(p_file.get_file()));
 			memdelete(d);
 			return true;
 		}
@@ -1120,7 +1219,7 @@ bool EditorSettings::save_text_editor_theme() {
 	if (p_file.get_file().to_lower() == "default" || p_file.get_file().to_lower() == "adaptive") {
 		return false;
 	}
-	String theme_path = get_settings_path().plus_file("text_editor_themes").plus_file(p_file + ".tet");
+	String theme_path = get_text_editor_themes_dir().plus_file(p_file + ".tet");
 	return _save_text_editor_theme(theme_path);
 }
 
@@ -1138,7 +1237,7 @@ bool EditorSettings::save_text_editor_theme_as(String p_file) {
 		list_text_editor_themes();
 		String theme_name = p_file.substr(0, p_file.length() - 4).get_file();
 
-		if (p_file.get_base_dir() == get_settings_path().plus_file("text_editor_themes")) {
+		if (p_file.get_base_dir() == get_text_editor_themes_dir()) {
 			_initial_set("text_editor/theme/color_theme", theme_name);
 			load_text_editor_theme();
 		}
@@ -1150,7 +1249,7 @@ bool EditorSettings::save_text_editor_theme_as(String p_file) {
 Vector<String> EditorSettings::get_script_templates(const String &p_extension) {
 
 	Vector<String> templates;
-	DirAccess *d = DirAccess::open(get_settings_path().plus_file("script_templates"));
+	DirAccess *d = DirAccess::open(get_script_templates_dir());
 	if (d) {
 		d->list_dir_begin();
 		String file = d->get_next();
@@ -1164,6 +1263,11 @@ Vector<String> EditorSettings::get_script_templates(const String &p_extension) {
 		memdelete(d);
 	}
 	return templates;
+}
+
+String EditorSettings::get_editor_layouts_config() const {
+
+	return get_settings_dir().plus_file("editor_layouts.cfg");
 }
 
 // Shortcuts
@@ -1272,8 +1376,8 @@ void EditorSettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("property_get_revert", "name"), &EditorSettings::property_get_revert);
 	ClassDB::bind_method(D_METHOD("add_property_info", "info"), &EditorSettings::_add_property_info_bind);
 
-	ClassDB::bind_method(D_METHOD("get_settings_path"), &EditorSettings::get_settings_path);
-	ClassDB::bind_method(D_METHOD("get_project_settings_path"), &EditorSettings::get_project_settings_path);
+	ClassDB::bind_method(D_METHOD("get_settings_dir"), &EditorSettings::get_settings_dir);
+	ClassDB::bind_method(D_METHOD("get_project_settings_dir"), &EditorSettings::get_project_settings_dir);
 
 	ClassDB::bind_method(D_METHOD("set_favorite_dirs", "dirs"), &EditorSettings::set_favorite_dirs);
 	ClassDB::bind_method(D_METHOD("get_favorite_dirs"), &EditorSettings::get_favorite_dirs);
@@ -1295,7 +1399,7 @@ EditorSettings::EditorSettings() {
 
 		Vector<uint8_t> data;
 		data.resize(etl->uncomp_size);
-		Compression::decompress(data.ptr(), etl->uncomp_size, etl->data, etl->comp_size, Compression::MODE_DEFLATE);
+		Compression::decompress(data.ptrw(), etl->uncomp_size, etl->data, etl->comp_size, Compression::MODE_DEFLATE);
 
 		FileAccessMemory *fa = memnew(FileAccessMemory);
 		fa->open_custom(data.ptr(), data.size());

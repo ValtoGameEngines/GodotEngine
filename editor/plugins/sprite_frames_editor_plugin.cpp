@@ -394,6 +394,7 @@ void SpriteFramesEditor::_animation_add() {
 	edited_anim = name;
 
 	undo_redo->commit_action();
+	animations->grab_focus();
 }
 void SpriteFramesEditor::_animation_remove() {
 
@@ -839,7 +840,7 @@ SpriteFramesEditorPlugin::SpriteFramesEditorPlugin(EditorNode *p_node) {
 	editor = p_node;
 	frames_editor = memnew(SpriteFramesEditor);
 	frames_editor->set_custom_minimum_size(Size2(0, 300) * EDSCALE);
-	button = editor->add_bottom_panel_item("SpriteFrames", frames_editor);
+	button = editor->add_bottom_panel_item(TTR("SpriteFrames"), frames_editor);
 	button->hide();
 }
 

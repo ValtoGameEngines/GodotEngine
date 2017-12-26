@@ -32,18 +32,21 @@
 #include "canvas_item_editor_plugin.h"
 #include "core/os/keyboard.h"
 
-AbstractPolygon2DEditor::Vertex::Vertex()
-	: polygon(-1), vertex(-1) {
+AbstractPolygon2DEditor::Vertex::Vertex() :
+		polygon(-1),
+		vertex(-1) {
 	// invalid vertex
 }
 
-AbstractPolygon2DEditor::Vertex::Vertex(int p_vertex)
-	: polygon(-1), vertex(p_vertex) {
+AbstractPolygon2DEditor::Vertex::Vertex(int p_vertex) :
+		polygon(-1),
+		vertex(p_vertex) {
 	// vertex p_vertex of current wip polygon
 }
 
-AbstractPolygon2DEditor::Vertex::Vertex(int p_polygon, int p_vertex)
-	: polygon(p_polygon), vertex(p_vertex) {
+AbstractPolygon2DEditor::Vertex::Vertex(int p_polygon, int p_vertex) :
+		polygon(p_polygon),
+		vertex(p_vertex) {
 	// vertex p_vertex of polygon p_polygon
 }
 
@@ -66,12 +69,14 @@ AbstractPolygon2DEditor::PosVertex::PosVertex() {
 	// invalid vertex
 }
 
-AbstractPolygon2DEditor::PosVertex::PosVertex(const Vertex &p_vertex, const Vector2 &p_pos)
-	: Vertex(p_vertex.polygon, p_vertex.vertex), pos(p_pos) {
+AbstractPolygon2DEditor::PosVertex::PosVertex(const Vertex &p_vertex, const Vector2 &p_pos) :
+		Vertex(p_vertex.polygon, p_vertex.vertex),
+		pos(p_pos) {
 }
 
-AbstractPolygon2DEditor::PosVertex::PosVertex(int p_polygon, int p_vertex, const Vector2 &p_pos)
-	: Vertex(p_polygon, p_vertex), pos(p_pos) {
+AbstractPolygon2DEditor::PosVertex::PosVertex(int p_polygon, int p_vertex, const Vector2 &p_pos) :
+		Vertex(p_polygon, p_vertex),
+		pos(p_pos) {
 }
 
 bool AbstractPolygon2DEditor::_is_empty() const {
@@ -90,6 +95,11 @@ bool AbstractPolygon2DEditor::_is_empty() const {
 	}
 
 	return true;
+}
+
+bool AbstractPolygon2DEditor::_is_line() const {
+
+	return false;
 }
 
 int AbstractPolygon2DEditor::_get_polygon_count() const {
@@ -158,12 +168,23 @@ void AbstractPolygon2DEditor::_menu_option(int p_option) {
 			mode = MODE_CREATE;
 			button_create->set_pressed(true);
 			button_edit->set_pressed(false);
+			button_delete->set_pressed(false);
 		} break;
 		case MODE_EDIT: {
 
+			_wip_close();
 			mode = MODE_EDIT;
 			button_create->set_pressed(false);
 			button_edit->set_pressed(true);
+			button_delete->set_pressed(false);
+		} break;
+		case MODE_DELETE: {
+
+			_wip_close();
+			mode = MODE_DELETE;
+			button_create->set_pressed(false);
+			button_edit->set_pressed(false);
+			button_delete->set_pressed(true);
 		} break;
 	}
 }
@@ -174,8 +195,9 @@ void AbstractPolygon2DEditor::_notification(int p_what) {
 
 		case NOTIFICATION_READY: {
 
-			button_create->set_icon(get_icon("Edit", "EditorIcons"));
-			button_edit->set_icon(get_icon("MovePoint", "EditorIcons"));
+			button_create->set_icon(EditorNode::get_singleton()->get_gui_base()->get_icon("CurveCreate", "EditorIcons"));
+			button_edit->set_icon(EditorNode::get_singleton()->get_gui_base()->get_icon("CurveEdit", "EditorIcons"));
+			button_delete->set_icon(EditorNode::get_singleton()->get_gui_base()->get_icon("CurveDelete", "EditorIcons"));
 			button_edit->set_pressed(true);
 
 			get_tree()->connect("node_removed", this, "_node_removed");
@@ -199,18 +221,34 @@ void AbstractPolygon2DEditor::_node_removed(Node *p_node) {
 	}
 }
 
-void AbstractPolygon2DEditor::_wip_close() {
+void AbstractPolygon2DEditor::_wip_changed() {
 
-	if (wip.size() >= 3) {
+	if (wip_active && _is_line()) {
+		_set_polygon(0, wip);
+	}
+}
+
+void AbstractPolygon2DEditor::_wip_close() {
+	if (!wip_active)
+		return;
+
+	if (_is_line()) {
+
+		_set_polygon(0, wip);
+	} else if (wip.size() >= 3) {
 
 		undo_redo->create_action(TTR("Create Poly"));
 		_action_add_polygon(wip);
 		_commit_action();
+	} else {
 
-		mode = MODE_EDIT;
-		button_edit->set_pressed(true);
-		button_create->set_pressed(false);
+		return;
 	}
+
+	mode = MODE_EDIT;
+	button_edit->set_pressed(true);
+	button_create->set_pressed(false);
+	button_delete->set_pressed(false);
 
 	wip.clear();
 	wip_active = false;
@@ -252,6 +290,7 @@ bool AbstractPolygon2DEditor::forward_gui_input(const Ref<InputEvent> &p_event) 
 					wip.clear();
 					wip.push_back(cpoint);
 					wip_active = true;
+					_wip_changed();
 					edited_point = PosVertex(-1, 1, cpoint);
 					canvas_item_editor->get_viewport_control()->update();
 					hover_point = Vertex();
@@ -262,20 +301,20 @@ bool AbstractPolygon2DEditor::forward_gui_input(const Ref<InputEvent> &p_event) 
 
 					const real_t grab_threshold = EDITOR_DEF("editors/poly_editor/point_grab_radius", 8);
 
-					if (wip.size() > 1 && xform.xform(wip[0]).distance_to(gpoint) < grab_threshold) {
+					if (!_is_line() && wip.size() > 1 && xform.xform(wip[0]).distance_to(gpoint) < grab_threshold) {
 						//wip closed
 						_wip_close();
 
 						return true;
 					} else {
 
+						//add wip point
 						wip.push_back(cpoint);
+						_wip_changed();
 						edited_point = PosVertex(-1, wip.size(), cpoint);
 						selected_point = Vertex(wip.size() - 1);
 						canvas_item_editor->get_viewport_control()->update();
 						return true;
-
-						//add wip point
 					}
 				}
 			} else if (mb->get_button_index() == BUTTON_RIGHT && mb->is_pressed() && wip_active) {
@@ -362,6 +401,18 @@ bool AbstractPolygon2DEditor::forward_gui_input(const Ref<InputEvent> &p_event) 
 					return true;
 				}
 			}
+		} else if (mode == MODE_DELETE) {
+
+			if (mb->get_button_index() == BUTTON_LEFT && mb->is_pressed()) {
+
+				const PosVertex closest = closest_point(gpoint);
+
+				if (closest.valid()) {
+
+					remove_point(closest);
+					return true;
+				}
+			}
 		}
 	}
 
@@ -414,43 +465,51 @@ bool AbstractPolygon2DEditor::forward_gui_input(const Ref<InputEvent> &p_event) 
 
 	Ref<InputEventKey> k = p_event;
 
-	if (k.is_valid() && k->is_pressed() && (k->get_scancode() == KEY_DELETE || k->get_scancode() == KEY_BACKSPACE)) {
-		if (wip_active && selected_point.polygon == -1) {
+	if (k.is_valid() && k->is_pressed()) {
 
-			if (wip.size() > selected_point.vertex) {
+		if (k->get_scancode() == KEY_DELETE || k->get_scancode() == KEY_BACKSPACE) {
 
-				wip.remove(selected_point.vertex);
-				selected_point = wip.size() - 1;
-				canvas_item_editor->get_viewport_control()->update();
-				return true;
+			if (wip_active && selected_point.polygon == -1) {
+
+				if (wip.size() > selected_point.vertex) {
+
+					wip.remove(selected_point.vertex);
+					_wip_changed();
+					selected_point = wip.size() - 1;
+					canvas_item_editor->get_viewport_control()->update();
+					return true;
+				}
+			} else {
+
+				const Vertex active_point = get_active_point();
+
+				if (active_point.valid()) {
+
+					remove_point(active_point);
+					return true;
+				}
 			}
-		} else {
+		} else if (wip_active && k->get_scancode() == KEY_ENTER) {
 
-			const Vertex active_point = get_active_point();
-
-			if (active_point.valid()) {
-
-				remove_point(active_point);
-				return true;
-			}
+			_wip_close();
 		}
 	}
 
 	return false;
 }
 
-void AbstractPolygon2DEditor::forward_draw_over_canvas(Control *p_canvas) {
+void AbstractPolygon2DEditor::forward_draw_over_viewport(Control *p_overlay) {
 	if (!_get_node())
 		return;
 
 	Control *vpc = canvas_item_editor->get_viewport_control();
 
 	Transform2D xform = canvas_item_editor->get_canvas_transform() * _get_node()->get_global_transform();
-	Ref<Texture> default_handle = get_icon("EditorHandle", "EditorIcons");
-	Ref<Texture> selected_handle = get_icon("EditorHandleSelected", "EditorIcons");
+	const Ref<Texture> handle = get_icon("EditorHandle", "EditorIcons");
 
 	const Vertex active_point = get_active_point();
 	const int n_polygons = _get_polygon_count();
+	const bool is_closed = !_is_line();
 
 	for (int j = -1; j < n_polygons; j++) {
 
@@ -476,7 +535,7 @@ void AbstractPolygon2DEditor::forward_draw_over_canvas(Control *p_canvas) {
 
 			const Color col = Color(0.5, 0.5, 0.5); // FIXME polygon->get_outline_color();
 			const int n = pre_move_edit.size();
-			for (int i = 0; i < n; i++) {
+			for (int i = 0; i < n - is_closed ? 0 : 1; i++) {
 
 				Vector2 p, p2;
 				p = pre_move_edit[i] + offset;
@@ -496,19 +555,32 @@ void AbstractPolygon2DEditor::forward_draw_over_canvas(Control *p_canvas) {
 
 			const Vertex vertex(j, i);
 
-			Vector2 p, p2;
-			p = (vertex == edited_point) ? edited_point.pos : (points[i] + offset);
-			if (j == edited_point.polygon && ((wip_active && i == n_points - 1) || (((i + 1) % n_points) == edited_point.vertex)))
-				p2 = edited_point.pos;
-			else
-				p2 = points[(i + 1) % n_points] + offset;
+			const Vector2 p = (vertex == edited_point) ? edited_point.pos : (points[i] + offset);
+			const Vector2 point = xform.xform(p);
 
-			Vector2 point = xform.xform(p);
-			Vector2 next_point = xform.xform(p2);
+			if (is_closed || i < n_points - 1) {
 
-			vpc->draw_line(point, next_point, col, 2);
-			Ref<Texture> handle = vertex == active_point ? selected_handle : default_handle;
-			vpc->draw_texture(handle, point - handle->get_size() * 0.5);
+				Vector2 p2;
+				if (j == edited_point.polygon &&
+						((wip_active && i == n_points - 1) || (((i + 1) % n_points) == edited_point.vertex)))
+					p2 = edited_point.pos;
+				else
+					p2 = points[(i + 1) % n_points] + offset;
+
+				const Vector2 next_point = xform.xform(p2);
+				vpc->draw_line(point, next_point, col, 2);
+			}
+		}
+
+		for (int i = 0; i < n_points; i++) {
+
+			const Vertex vertex(j, i);
+
+			const Vector2 p = (vertex == edited_point) ? edited_point.pos : (points[i] + offset);
+			const Vector2 point = xform.xform(p);
+
+			const Color modulate = vertex == active_point ? Color(0.5, 1, 2) : Color(1, 1, 1);
+			vpc->draw_texture(handle, point - handle->get_size() * 0.5, modulate);
 		}
 	}
 
@@ -674,13 +746,19 @@ AbstractPolygon2DEditor::AbstractPolygon2DEditor(EditorNode *p_editor, bool p_wi
 	add_child(button_create);
 	button_create->connect("pressed", this, "_menu_option", varray(MODE_CREATE));
 	button_create->set_toggle_mode(true);
-	button_create->set_tooltip(TTR("Create a new polygon from scratch."));
+	button_create->set_tooltip(TTR("Create a new polygon from scratch"));
 
 	button_edit = memnew(ToolButton);
 	add_child(button_edit);
 	button_edit->connect("pressed", this, "_menu_option", varray(MODE_EDIT));
 	button_edit->set_toggle_mode(true);
 	button_edit->set_tooltip(TTR("Edit existing polygon:\nLMB: Move Point.\nCtrl+LMB: Split Segment.\nRMB: Erase Point."));
+
+	button_delete = memnew(ToolButton);
+	add_child(button_delete);
+	button_delete->connect("pressed", this, "_menu_option", varray(MODE_DELETE));
+	button_delete->set_toggle_mode(true);
+	button_delete->set_tooltip(TTR("Delete points"));
 
 	create_resource = memnew(ConfirmationDialog);
 	add_child(create_resource);

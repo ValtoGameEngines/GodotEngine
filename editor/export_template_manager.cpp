@@ -35,6 +35,7 @@
 #include "io/zip_io.h"
 #include "os/dir_access.h"
 #include "version.h"
+
 void ExportTemplateManager::_update_template_list() {
 
 	while (current_hb->get_child_count()) {
@@ -46,7 +47,7 @@ void ExportTemplateManager::_update_template_list() {
 	}
 
 	DirAccess *d = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	Error err = d->change_dir(EditorSettings::get_singleton()->get_settings_path().plus_file("templates"));
+	Error err = d->change_dir(EditorSettings::get_singleton()->get_templates_dir());
 
 	d->list_dir_begin();
 	Set<String> templates;
@@ -66,7 +67,7 @@ void ExportTemplateManager::_update_template_list() {
 
 	memdelete(d);
 
-	String current_version = itos(VERSION_MAJOR) + "." + itos(VERSION_MINOR) + "-" + _MKSTR(VERSION_STATUS) + VERSION_MODULE_CONFIG;
+	String current_version = itos(VERSION_MAJOR) + "." + itos(VERSION_MINOR) + "-" + VERSION_STATUS + VERSION_MODULE_CONFIG;
 
 	Label *current = memnew(Label);
 	current->set_h_size_flags(SIZE_EXPAND_FILL);
@@ -127,7 +128,7 @@ void ExportTemplateManager::_download_template(const String &p_version) {
 	template_list_state->set_text(TTR("Retrieving mirrors, please wait.."));
 	template_download_progress->set_max(100);
 	template_download_progress->set_value(0);
-	request_mirror->request("https://www.godotengine.org/download_mirrors.php?version=" + p_version);
+	request_mirror->request("https://godotengine.org/mirrorlist/" + p_version + ".json");
 	template_list_state->show();
 	template_download_progress->show();
 }
@@ -142,7 +143,7 @@ void ExportTemplateManager::_uninstall_template(const String &p_version) {
 void ExportTemplateManager::_uninstall_template_confirm() {
 
 	DirAccess *d = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	Error err = d->change_dir(EditorSettings::get_singleton()->get_settings_path().plus_file("templates"));
+	Error err = d->change_dir(EditorSettings::get_singleton()->get_templates_dir());
 
 	ERR_FAIL_COND(err != OK);
 
@@ -175,7 +176,7 @@ void ExportTemplateManager::_uninstall_template_confirm() {
 	_update_template_list();
 }
 
-void ExportTemplateManager::_install_from_file(const String &p_file) {
+void ExportTemplateManager::_install_from_file(const String &p_file, bool p_use_progress) {
 
 	FileAccess *fa = NULL;
 	zlib_filefunc_def io = zipio_create_io_from_file(&fa);
@@ -206,7 +207,7 @@ void ExportTemplateManager::_install_from_file(const String &p_file) {
 
 			//read
 			unzOpenCurrentFile(pkg);
-			ret = unzReadCurrentFile(pkg, data.ptr(), data.size());
+			ret = unzReadCurrentFile(pkg, data.ptrw(), data.size());
 			unzCloseCurrentFile(pkg);
 
 			String data_str;
@@ -244,7 +245,7 @@ void ExportTemplateManager::_install_from_file(const String &p_file) {
 		return;
 	}
 
-	String template_path = EditorSettings::get_singleton()->get_settings_path().plus_file("templates").plus_file(version);
+	String template_path = EditorSettings::get_singleton()->get_templates_dir().plus_file(version);
 
 	DirAccess *d = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	Error err = d->make_dir_recursive(template_path);
@@ -258,7 +259,10 @@ void ExportTemplateManager::_install_from_file(const String &p_file) {
 
 	ret = unzGoToFirstFile(pkg);
 
-	EditorProgress p("ltask", TTR("Extracting Export Templates"), fc);
+	EditorProgress *p = NULL;
+	if (p_use_progress) {
+		p = memnew(EditorProgress("ltask", TTR("Extracting Export Templates"), fc));
+	}
 
 	fc = 0;
 
@@ -269,36 +273,38 @@ void ExportTemplateManager::_install_from_file(const String &p_file) {
 		char fname[16384];
 		unzGetCurrentFileInfo(pkg, &info, fname, 16384, NULL, 0, NULL, 0);
 
-		String file = fname;
+		String file = String(fname).get_file();
 
 		Vector<uint8_t> data;
 		data.resize(info.uncompressed_size);
 
 		//read
 		unzOpenCurrentFile(pkg);
-		unzReadCurrentFile(pkg, data.ptr(), data.size());
+		unzReadCurrentFile(pkg, data.ptrw(), data.size());
 		unzCloseCurrentFile(pkg);
 
-		print_line(fname);
-		/*
-		for(int i=0;i<512;i++) {
-			print_line(itos(data[i]));
+		if (p) {
+			p->step(TTR("Importing:") + " " + file, fc);
 		}
-		*/
-
-		file = file.get_file();
-
-		p.step(TTR("Importing:") + " " + file, fc);
 
 		FileAccess *f = FileAccess::open(template_path.plus_file(file), FileAccess::WRITE);
 
-		ERR_CONTINUE(!f);
+		if (!f) {
+			ret = unzGoToNextFile(pkg);
+			fc++;
+			ERR_CONTINUE(!f);
+		}
+
 		f->store_buffer(data.ptr(), data.size());
 
 		memdelete(f);
 
 		ret = unzGoToNextFile(pkg);
 		fc++;
+	}
+
+	if (p) {
+		memdelete(p);
 	}
 
 	unzClose(pkg);
@@ -319,8 +325,16 @@ void ExportTemplateManager::ok_pressed() {
 
 void ExportTemplateManager::_http_download_mirror_completed(int p_status, int p_code, const PoolStringArray &headers, const PoolByteArray &p_data) {
 
-	print_line("mirror complete");
-	String mirror_str = "{ \"mirrors\":[{\"name\":\"Official\",\"url\":\"http://op.godotengine.org:81/downloads/2.1.4/Godot_v2.1.4-stable_linux_server.64.zip\"}] }";
+	if (p_status != HTTPRequest::RESULT_SUCCESS || p_code != 200) {
+		EditorNode::get_singleton()->show_warning("Error getting the list of mirrors.");
+		return;
+	}
+
+	String mirror_str;
+	{
+		PoolByteArray::Read r = p_data.read();
+		mirror_str.parse_utf8((const char *)r.ptr(), p_data.size());
+	}
 
 	template_list_state->hide();
 	template_download_progress->hide();
@@ -330,7 +344,7 @@ void ExportTemplateManager::_http_download_mirror_completed(int p_status, int p_
 	int errline;
 	Error err = JSON::parse(mirror_str, r, errs, errline);
 	if (err != OK) {
-		EditorNode::get_singleton()->show_warning("Error parsing JSON with mirror list. Please report this issue!");
+		EditorNode::get_singleton()->show_warning("Error parsing JSON of mirror list. Please report this issue!");
 		return;
 	}
 
@@ -376,7 +390,7 @@ void ExportTemplateManager::_http_download_templates_completed(int p_status, int
 			template_list_state->set_text(TTR("No response."));
 		} break;
 		case HTTPRequest::RESULT_REQUEST_FAILED: {
-			template_list_state->set_text(TTR("Req. Failed."));
+			template_list_state->set_text(TTR("Request Failed."));
 		} break;
 		case HTTPRequest::RESULT_REDIRECT_LIMIT_REACHED: {
 			template_list_state->set_text(TTR("Redirect Loop."));
@@ -385,7 +399,7 @@ void ExportTemplateManager::_http_download_templates_completed(int p_status, int
 			if (p_code != 200) {
 				template_list_state->set_text(TTR("Failed:") + " " + itos(p_code));
 			} else {
-				String path = EditorSettings::get_singleton()->get_settings_path().plus_file("tmp").plus_file("tmp_templates.tpz");
+				String path = EditorSettings::get_singleton()->get_cache_dir().plus_file("tmp_templates.tpz");
 				FileAccess *f = FileAccess::open(path, FileAccess::WRITE);
 				if (!f) {
 					template_list_state->set_text(TTR("Can't write file."));
@@ -396,7 +410,7 @@ void ExportTemplateManager::_http_download_templates_completed(int p_status, int
 					memdelete(f);
 					template_list_state->set_text(TTR("Download Complete."));
 					template_downloader->hide();
-					_install_from_file(path);
+					_install_from_file(path, false);
 				}
 			}
 		} break;
@@ -456,7 +470,7 @@ void ExportTemplateManager::_notification(int p_what) {
 				break;
 			case HTTPClient::STATUS_CONNECTING: status = TTR("Connecting.."); break;
 			case HTTPClient::STATUS_CANT_CONNECT:
-				status = TTR("Can't Conect");
+				status = TTR("Can't Connect");
 				errored = true;
 				break;
 			case HTTPClient::STATUS_CONNECTED: status = TTR("Connected"); break;
@@ -538,7 +552,7 @@ ExportTemplateManager::ExportTemplateManager() {
 	template_open->add_filter("*.tpz ; Godot Export Templates");
 	template_open->set_access(FileDialog::ACCESS_FILESYSTEM);
 	template_open->set_mode(FileDialog::MODE_OPEN_FILE);
-	template_open->connect("file_selected", this, "_install_from_file");
+	template_open->connect("file_selected", this, "_install_from_file", varray(true));
 	add_child(template_open);
 
 	set_title(TTR("Export Template Manager"));
