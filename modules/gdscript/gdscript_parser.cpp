@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "gdscript_parser.h"
 
 #include "gdscript.h"
@@ -457,9 +458,9 @@ GDScriptParser::Node *GDScriptParser::_parse_expression(Node *p_parent, bool p_s
 			if (!validating) {
 
 				//this can be too slow for just validating code
-				if (for_completion && ScriptCodeCompletionCache::get_sigleton()) {
-					res = ScriptCodeCompletionCache::get_sigleton()->get_cached_resource(path);
-				} else {
+				if (for_completion && ScriptCodeCompletionCache::get_singleton()) {
+					res = ScriptCodeCompletionCache::get_singleton()->get_cached_resource(path);
+				} else if (FileAccess::exists(path)) {
 					res = ResourceLoader::load(path);
 				}
 				if (!res.is_valid()) {

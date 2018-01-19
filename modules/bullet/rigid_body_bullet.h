@@ -1,13 +1,12 @@
 /*************************************************************************/
-/*  body_bullet.h                                                        */
-/*  Author: AndreaCatania                                                */
+/*  rigid_body_bullet.h                                                  */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,10 +31,15 @@
 #ifndef BODYBULLET_H
 #define BODYBULLET_H
 
-#include "BulletCollision/BroadphaseCollision/btCollisionAlgorithm.h"
-#include "LinearMath/btTransform.h"
 #include "collision_object_bullet.h"
 #include "space_bullet.h"
+
+#include <BulletCollision/BroadphaseCollision/btCollisionAlgorithm.h>
+#include <LinearMath/btTransform.h>
+
+/**
+	@author AndreaCatania
+*/
 
 class AreaBullet;
 class SpaceBullet;
@@ -44,11 +48,11 @@ class GodotMotionState;
 class BulletPhysicsDirectBodyState;
 
 /// This class could be used in multi thread with few changes but currently
-/// is setted to be only in one single thread.
+/// is set to be only in one single thread.
 ///
 /// In the system there is only one object at a time that manage all bodies and is
 /// created by BulletPhysicsServer and is held by the "singleton" variable of this class
-/// Each time something require it, the body must be setted again.
+/// Each time something require it, the body must be set again.
 class BulletPhysicsDirectBodyState : public PhysicsDirectBodyState {
 	GDCLASS(BulletPhysicsDirectBodyState, PhysicsDirectBodyState)
 

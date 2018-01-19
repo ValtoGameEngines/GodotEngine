@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "godotsharp_editor.h"
 
 #include "core/os/os.h"
@@ -150,7 +151,7 @@ Error GodotSharpEditor::open_in_external_editor(const Ref<Script> &p_script, int
 
 			if (p_line >= 0) {
 				args.push_back("-g");
-				args.push_back(script_path + ":" + itos(p_line) + ":" + itos(p_col));
+				args.push_back(script_path + ":" + itos(p_line + 1) + ":" + itos(p_col));
 			} else {
 				args.push_back(script_path);
 			}
@@ -169,6 +170,11 @@ Error GodotSharpEditor::open_in_external_editor(const Ref<Script> &p_script, int
 				monodevel_instance = memnew(MonoDevelopInstance(GodotSharpDirs::get_project_sln_path()));
 
 			String script_path = ProjectSettings::get_singleton()->globalize_path(p_script->get_path());
+
+			if (p_line >= 0) {
+				script_path += ";" + itos(p_line + 1) + ";" + itos(p_col);
+			}
+
 			monodevel_instance->execute(script_path);
 		} break;
 		default:
