@@ -99,6 +99,20 @@ void GridMapEditor::_menu_option(int p_option) {
 				int idx = options->get_popup()->get_item_index(MENU_OPTION_X_AXIS + i);
 				options->get_popup()->set_item_checked(idx, i == new_axis);
 			}
+
+			if (edit_axis != new_axis) {
+				int item1 = options->get_popup()->get_item_id(MENU_OPTION_NEXT_LEVEL);
+				int item2 = options->get_popup()->get_item_id(MENU_OPTION_PREV_LEVEL);
+				if (edit_axis == Vector3::AXIS_Y) {
+					options->get_popup()->set_item_text(item1, TTR("Next Plane"));
+					options->get_popup()->set_item_text(item2, TTR("Previous Plane"));
+					spin_box_label->set_text(TTR("Plane:"));
+				} else if (new_axis == Vector3::AXIS_Y) {
+					options->get_popup()->set_item_text(item1, TTR("Next Floor"));
+					options->get_popup()->set_item_text(item2, TTR("Previous Floor"));
+					spin_box_label->set_text(TTR("Floor:"));
+				}
+			}
 			edit_axis = Vector3::Axis(new_axis);
 			update_grid();
 			_update_clip();
@@ -627,12 +641,21 @@ bool GridMapEditor::forward_spatial_input_event(Camera *p_camera, const Ref<Inpu
 	Ref<InputEventPanGesture> pan_gesture = p_event;
 	if (pan_gesture.is_valid()) {
 
-		if (pan_gesture->get_command() || pan_gesture->get_shift()) {
-			const real_t delta = pan_gesture->get_delta().y;
-			floor->set_value(floor->get_value() + SGN(delta));
+		if (pan_gesture->get_alt() && (pan_gesture->get_command() || pan_gesture->get_shift())) {
+			const real_t delta = pan_gesture->get_delta().y * 0.5;
+			accumulated_floor_delta += delta;
+			int step = 0;
+			if (ABS(accumulated_floor_delta) > 1.0) {
+				step = SGN(accumulated_floor_delta);
+				accumulated_floor_delta -= step;
+			}
+			if (step) {
+				floor->set_value(floor->get_value() + step);
+			}
 			return true;
 		}
 	}
+	accumulated_floor_delta = 0.0;
 
 	return false;
 }
@@ -998,9 +1021,9 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 	spatial_editor_hb->set_alignment(BoxContainer::ALIGN_END);
 	SpatialEditor::get_singleton()->add_control_to_menu_panel(spatial_editor_hb);
 
-	Label *fl = memnew(Label);
-	fl->set_text(TTR("Floor:"));
-	spatial_editor_hb->add_child(fl);
+	spin_box_label = memnew(Label);
+	spin_box_label->set_text(TTR("Floor:"));
+	spatial_editor_hb->add_child(spin_box_label);
 
 	floor = memnew(SpinBox);
 	floor->set_min(-32767);
@@ -1233,6 +1256,7 @@ GridMapEditor::GridMapEditor(EditorNode *p_editor) {
 
 	selection.active = false;
 	updating = false;
+	accumulated_floor_delta = 0.0;
 }
 
 GridMapEditor::~GridMapEditor() {
