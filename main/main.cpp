@@ -689,6 +689,19 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		I = N;
 	}
 
+	if (globals->setup(game_path, main_pack, upwards) == OK) {
+		found_project = true;
+	} else {
+
+#ifdef TOOLS_ENABLED
+		editor = false;
+#else
+		OS::get_singleton()->print("Error: Could not load game path '%s'.\n", game_path.ascii().get_data());
+
+		goto error;
+#endif
+	}
+
 	GLOBAL_DEF("memory/limits/multithreaded_server/rid_pool_prealloc", 60);
 	GLOBAL_DEF("network/limits/debugger_stdout/max_chars_per_second", 2048);
 	GLOBAL_DEF("network/limits/debugger_stdout/max_messages_per_frame", 10);
@@ -761,19 +774,6 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 #endif
 
-	if (globals->setup(game_path, main_pack, upwards) == OK) {
-		found_project = true;
-	} else {
-
-#ifdef TOOLS_ENABLED
-		editor = false;
-#else
-		OS::get_singleton()->print("Error: Could not load game path '%s'.\n", game_path.ascii().get_data());
-
-		goto error;
-#endif
-	}
-
 	GLOBAL_DEF("logging/file_logging/enable_file_logging", false);
 	GLOBAL_DEF("logging/file_logging/log_path", "user://logs/log.txt");
 	GLOBAL_DEF("logging/file_logging/max_log_files", 10);
@@ -829,8 +829,11 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	OS::get_singleton()->set_cmdline(execpath, main_args);
 
-	//if (video_driver == "") // useless for now, so removing
-	//	video_driver = GLOBAL_DEF("display/driver/name", Variant((const char *)OS::get_singleton()->get_video_driver_name(0)));
+	GLOBAL_DEF("rendering/quality/driver/driver_name", "GLES3");
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/driver/driver_name", PropertyInfo(Variant::STRING, "rendering/quality/driver/driver_name", PROPERTY_HINT_ENUM, "GLES3,GLES2"));
+	if (video_driver == "") {
+		video_driver = GLOBAL_GET("rendering/quality/driver/driver_name");
+	}
 
 	GLOBAL_DEF("display/window/size/width", 1024);
 	GLOBAL_DEF("display/window/size/height", 600);

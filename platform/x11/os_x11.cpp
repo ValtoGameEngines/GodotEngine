@@ -29,6 +29,7 @@
 /*************************************************************************/
 
 #include "os_x11.h"
+#include "drivers/gles2/rasterizer_gles2.h"
 #include "drivers/gles3/rasterizer_gles3.h"
 #include "errno.h"
 #include "key_mapping_x11.h"
@@ -75,25 +76,6 @@
 #undef CursorShape
 
 #include <X11/XKBlib.h>
-
-int OS_X11::get_video_driver_count() const {
-	return 1;
-}
-
-const char *OS_X11::get_video_driver_name(int p_driver) const {
-	return "GLES3";
-}
-
-int OS_X11::get_audio_driver_count() const {
-	return AudioDriverManager::get_driver_count();
-}
-
-const char *OS_X11::get_audio_driver_name(int p_driver) const {
-
-	AudioDriver *driver = AudioDriverManager::get_driver(p_driver);
-	ERR_FAIL_COND_V(!driver, "");
-	return AudioDriverManager::get_driver(p_driver)->get_name();
-}
 
 void OS_X11::initialize_core() {
 
@@ -283,12 +265,25 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 //print_line("def videomode "+itos(current_videomode.width)+","+itos(current_videomode.height));
 #if defined(OPENGL_ENABLED)
 
-	context_gl = memnew(ContextGL_X11(x11_display, x11_window, current_videomode, true));
+	ContextGL_X11::ContextType opengl_api_type = ContextGL_X11::GLES_3_0_COMPATIBLE;
+
+	if (p_video_driver == VIDEO_DRIVER_GLES2) {
+		opengl_api_type = ContextGL_X11::GLES_2_0_COMPATIBLE;
+	}
+
+	context_gl = memnew(ContextGL_X11(x11_display, x11_window, current_videomode, opengl_api_type));
 	context_gl->initialize();
 
-	RasterizerGLES3::register_config();
-
-	RasterizerGLES3::make_current();
+	switch (opengl_api_type) {
+		case ContextGL_X11::GLES_2_0_COMPATIBLE: {
+			RasterizerGLES2::register_config();
+			RasterizerGLES2::make_current();
+		} break;
+		case ContextGL_X11::GLES_3_0_COMPATIBLE: {
+			RasterizerGLES3::register_config();
+			RasterizerGLES3::make_current();
+		} break;
+	}
 
 	context_gl->set_use_vsync(current_videomode.use_vsync);
 

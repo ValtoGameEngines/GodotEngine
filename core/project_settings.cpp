@@ -692,7 +692,10 @@ Error ProjectSettings::_save_settings_text(const String &p_file, const Map<Strin
 
 			String vstr;
 			VariantWriter::write_to_string(value, vstr);
-			file->store_string(F->get() + "=" + vstr + "\n");
+			if (F->get().find(" ") != -1)
+				file->store_string(F->get().quote() + "=" + vstr + "\n");
+			else
+				file->store_string(F->get() + "=" + vstr + "\n");
 		}
 	}
 
@@ -1026,6 +1029,20 @@ ProjectSettings::ProjectSettings() {
 	va.push_back(key);
 	GLOBAL_DEF("input/ui_page_down", va);
 	input_presets.push_back("input/ui_page_down");
+
+	va = Array();
+	key.instance();
+	key->set_scancode(KEY_HOME);
+	va.push_back(key);
+	GLOBAL_DEF("input/ui_home", va);
+	input_presets.push_back("input/ui_home");
+
+	va = Array();
+	key.instance();
+	key->set_scancode(KEY_END);
+	va.push_back(key);
+	GLOBAL_DEF("input/ui_end", va);
+	input_presets.push_back("input/ui_end");
 
 	//GLOBAL_DEF("display/window/handheld/orientation", "landscape");
 
