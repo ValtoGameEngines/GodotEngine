@@ -29,6 +29,7 @@
 /*************************************************************************/
 
 #include "canvas_layer.h"
+#include "scene/2d/canvas_item.h"
 #include "viewport.h"
 
 void CanvasLayer::set_layer(int p_xform) {
@@ -62,6 +63,24 @@ void CanvasLayer::_update_xform() {
 	transform.set_origin(ofs);
 	if (viewport.is_valid())
 		VisualServer::get_singleton()->viewport_set_canvas_transform(viewport, canvas, transform);
+
+	if (!is_inside_tree())
+		return;
+
+	_notify_xform(this);
+}
+
+void CanvasLayer::_notify_xform(Node *p_node) {
+
+	for (int i = 0; i < p_node->get_child_count(); i++) {
+
+		CanvasItem *ci = Object::cast_to<CanvasItem>(p_node->get_child(i));
+		if (ci) {
+			ci->_notify_transform(ci);
+		} else {
+			_notify_xform(p_node->get_child(i));
+		}
+	}
 }
 
 void CanvasLayer::_update_locrotscale() {
@@ -248,12 +267,10 @@ void CanvasLayer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_custom_viewport"), &CanvasLayer::get_custom_viewport);
 
 	ClassDB::bind_method(D_METHOD("get_canvas"), &CanvasLayer::get_canvas);
-	//ClassDB::bind_method(D_METHOD("get_viewport"),&CanvasLayer::get_viewport);
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "layer", PROPERTY_HINT_RANGE, "-128,128,1"), "set_layer", "get_layer");
-	//ADD_PROPERTY( PropertyInfo(Variant::MATRIX32,"transform",PROPERTY_HINT_RANGE),"set_transform","get_transform") ;
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "offset"), "set_offset", "get_offset");
-	ADD_PROPERTY(PropertyInfo(Variant::REAL, "rotation_degrees", PROPERTY_HINT_RANGE, "-1440,1440,0.1", PROPERTY_USAGE_EDITOR), "set_rotation_degrees", "get_rotation_degrees");
+	ADD_PROPERTY(PropertyInfo(Variant::REAL, "rotation_degrees", PROPERTY_HINT_RANGE, "-1080,1080,0.1,or_lesser,or_greater", PROPERTY_USAGE_EDITOR), "set_rotation_degrees", "get_rotation_degrees");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "rotation", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "set_rotation", "get_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "scale"), "set_scale", "get_scale");
 	ADD_PROPERTY(PropertyInfo(Variant::TRANSFORM2D, "transform"), "set_transform", "get_transform");

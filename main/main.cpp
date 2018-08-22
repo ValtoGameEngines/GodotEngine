@@ -263,8 +263,9 @@ void Main::print_help(const char *p_binary) {
 
 	OS::get_singleton()->print("Standalone tools:\n");
 	OS::get_singleton()->print("  -s, --script <script>            Run a script.\n");
+	OS::get_singleton()->print("  --check-only                     Only parse for errors and quit (use with --script).\n");
 #ifdef TOOLS_ENABLED
-	OS::get_singleton()->print("  --export <target>                Export the project using the given export target. Export only main pack if path ends with .pck or .zip'.\n");
+	OS::get_singleton()->print("  --export <target>                Export the project using the given export target. Export only main pack if path ends with .pck or .zip.\n");
 	OS::get_singleton()->print("  --export-debug <target>          Like --export, but use debug template.\n");
 	OS::get_singleton()->print("  --doctool <path>                 Dump the engine API reference to the given <path> in XML format, merging if existing files are found.\n");
 	OS::get_singleton()->print("  --no-docbase                     Disallow dumping the base types (used with --doctool).\n");
@@ -538,6 +539,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		} else if (I->get() == "--build-solutions") { // Build the scripting solution such C#
 
 			auto_build_solutions = true;
+			editor = true;
 #endif
 		} else if (I->get() == "--no-window") { // disable window creation, Windows only
 
@@ -713,6 +715,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			memdelete(sdr);
 		} else {
 			script_debugger = sdr;
+			sdr->set_allow_focus_steal_pid(allow_focus_steal_pid);
 		}
 	} else if (debug_mode == "local") {
 
@@ -822,7 +825,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	OS::get_singleton()->set_cmdline(execpath, main_args);
 
 	GLOBAL_DEF("rendering/quality/driver/driver_name", "GLES3");
-	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/driver/driver_name", PropertyInfo(Variant::STRING, "rendering/quality/driver/driver_name", PROPERTY_HINT_ENUM, "GLES3,GLES2"));
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/driver/driver_name", PropertyInfo(Variant::STRING, "rendering/quality/driver/driver_name", PROPERTY_HINT_ENUM, "GLES2,GLES3"));
 	if (video_driver == "") {
 		video_driver = GLOBAL_GET("rendering/quality/driver/driver_name");
 	}
@@ -865,6 +868,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	OS::get_singleton()->_allow_layered = GLOBAL_DEF("display/window/allow_per_pixel_transparency", false);
 
 	video_mode.use_vsync = GLOBAL_DEF("display/window/vsync/use_vsync", true);
+	OS::get_singleton()->_use_vsync = video_mode.use_vsync;
+
 	video_mode.layered = GLOBAL_DEF("display/window/per_pixel_transparency", false);
 	video_mode.layered_splash = GLOBAL_DEF("display/window/per_pixel_transparency_splash", false);
 
@@ -909,7 +914,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	}
 
 	if (audio_driver == "") { // specified in project.godot
-		audio_driver = GLOBAL_DEF("audio/driver", OS::get_singleton()->get_audio_driver_name(0));
+		audio_driver = GLOBAL_DEF_RST("audio/driver", OS::get_singleton()->get_audio_driver_name(0));
 	}
 
 	for (int i = 0; i < OS::get_singleton()->get_audio_driver_count(); i++) {
@@ -1175,10 +1180,6 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 
 #endif
 
-	if (allow_focus_steal_pid) {
-		OS::get_singleton()->enable_for_stealing_focus(allow_focus_steal_pid);
-	}
-
 	MAIN_PRINT("Main: Load Modules, Physics, Drivers, Scripts");
 
 	register_platform_apis();
@@ -1239,6 +1240,7 @@ bool Main::start() {
 	String test;
 	String _export_preset;
 	bool export_debug = false;
+	bool check_only = false;
 
 	main_timer_sync.init(OS::get_singleton()->get_ticks_usec());
 
@@ -1255,6 +1257,8 @@ bool Main::start() {
 #endif
 		} else if (args[i].length() && args[i][0] != '-' && game_path == "") {
 			game_path = args[i];
+		} else if (args[i] == "--check-only") {
+			check_only = true;
 		}
 		//parameters that have an argument to the right
 		else if (i < (args.size() - 1)) {
@@ -1382,6 +1386,10 @@ bool Main::start() {
 		Ref<Script> script_res = ResourceLoader::load(script);
 		ERR_EXPLAIN("Can't load script: " + script);
 		ERR_FAIL_COND_V(script_res.is_null(), false);
+
+		if (check_only) {
+			return false;
+		}
 
 		if (script_res->can_instance() /*&& script_res->inherits_from("SceneTreeScripted")*/) {
 
@@ -1726,8 +1734,11 @@ bool Main::iteration() {
 	int physics_fps = Engine::get_singleton()->get_iterations_per_second();
 	float frame_slice = 1.0 / physics_fps;
 
+	float time_scale = Engine::get_singleton()->get_time_scale();
+
 	MainFrameTime advance = main_timer_sync.advance(frame_slice, physics_fps);
 	double step = advance.idle_step;
+	double scaled_step = step * time_scale;
 
 	Engine::get_singleton()->_frame_step = step;
 
@@ -1748,8 +1759,6 @@ bool Main::iteration() {
 		step -= (advance.physics_steps - max_physics_steps) * frame_slice;
 		advance.physics_steps = max_physics_steps;
 	}
-
-	float time_scale = Engine::get_singleton()->get_time_scale();
 
 	bool exit = false;
 
@@ -1797,18 +1806,15 @@ bool Main::iteration() {
 
 		if ((!force_redraw_requested) && OS::get_singleton()->is_in_low_processor_usage_mode()) {
 			if (VisualServer::get_singleton()->has_changed()) {
-				VisualServer::get_singleton()->draw(); // flush visual commands
+				VisualServer::get_singleton()->draw(true, scaled_step); // flush visual commands
 				Engine::get_singleton()->frames_drawn++;
 			}
 		} else {
-			VisualServer::get_singleton()->draw(); // flush visual commands
+			VisualServer::get_singleton()->draw(true, scaled_step); // flush visual commands
 			Engine::get_singleton()->frames_drawn++;
 			force_redraw_requested = false;
 		}
 	}
-
-	if (AudioServer::get_singleton())
-		AudioServer::get_singleton()->update();
 
 	idle_process_ticks = OS::get_singleton()->get_ticks_usec() - idle_begin;
 	idle_process_max = MAX(idle_process_ticks, idle_process_max);
@@ -1817,6 +1823,8 @@ bool Main::iteration() {
 	for (int i = 0; i < ScriptServer::get_language_count(); i++) {
 		ScriptServer::get_language(i)->frame();
 	}
+
+	AudioServer::get_singleton()->update();
 
 	if (script_debugger) {
 		if (script_debugger->is_profiling()) {
@@ -1949,6 +1957,15 @@ void Main::cleanup() {
 		memdelete(globals);
 	if (engine)
 		memdelete(engine);
+
+	if (OS::get_singleton()->is_restart_on_exit_set()) {
+		//attempt to restart with arguments
+		String exec = OS::get_singleton()->get_executable_path();
+		List<String> args = OS::get_singleton()->get_restart_on_exit_arguments();
+		OS::ProcessID pid = 0;
+		OS::get_singleton()->execute(exec, args, false, &pid);
+		OS::get_singleton()->set_restart_on_exit(false, List<String>()); //clear list (uses memory)
+	}
 
 	unregister_core_driver_types();
 	unregister_core_types();

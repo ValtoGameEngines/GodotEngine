@@ -17,7 +17,7 @@
 		[b]Networking with nodes:[/b] After connecting to a server (or making one, see [NetworkedMultiplayerENet]) it is possible to use the built-in RPC (remote procedure call) system to communicate over the network. By calling [method rpc] with a method name, it will be called locally and in all connected peers (peers = clients and the server that accepts connections). To identify which node receives the RPC call Godot will use its [NodePath] (make sure node names are the same on all peers). Also take a look at the high-level networking tutorial and corresponding demos.
 	</description>
 	<tutorials>
-		http://docs.godotengine.org/en/3.0/getting_started/step_by_step/scenes_and_nodes.html
+		<link>http://docs.godotengine.org/en/3.0/getting_started/step_by_step/scenes_and_nodes.html</link>
 	</tutorials>
 	<demos>
 	</demos>
@@ -36,6 +36,12 @@
 			<description>
 				Called when the node is about to leave the [SceneTree] (e.g. upon freeing, scene changing, or after calling [method remove_child] in a script). If the node has children, its [method _exit_tree] callback will be called last, after all its children have left the tree.
 				Corresponds to the NOTIFICATION_EXIT_TREE notification in [method Object._notification] and signal [signal tree_exiting]. To get notified when the node has already left the active tree, connect to the [signal tree_exited]
+			</description>
+		</method>
+		<method name="_get_configuration_warning" qualifiers="virtual">
+			<return type="String">
+			</return>
+			<description>
 			</description>
 		</method>
 		<method name="_input" qualifiers="virtual">
@@ -223,8 +229,8 @@
 			</argument>
 			<description>
 				Fetches a node. The [NodePath] can be either a relative path (from the current node) or an absolute path (in the scene tree) to a node. If the path does not exist, a [code]null instance[/code] is returned and attempts to access it will result in an "Attempt to call &lt;method&gt; on a null instance." error.
-				Note: fetching absolute paths only works when the node is inside the scene tree (see [method is_inside_tree]).
-				[i]Example:[/i] Assume your current node is Character and the following tree:
+				[b]Note:[/b] Fetching absolute paths only works when the node is inside the scene tree (see [method is_inside_tree]).
+				[b]Example:[/b] Assume your current node is Character and the following tree:
 				[codeblock]
 				/root
 				/root/Character
@@ -572,10 +578,10 @@
 			</return>
 			<argument index="0" name="method" type="String">
 			</argument>
-			<argument index="1" name="mode" type="int" enum="Node.RPCMode">
+			<argument index="1" name="mode" type="int" enum="MultiplayerAPI.RPCMode">
 			</argument>
 			<description>
-				Changes the RPC mode for the given [code]method[/code] to the given [code]mode[/code]. See [enum RPCMode]. An alternative is annotating methods and properties with the corresponding keywords ([code]remote[/code], [code]sync[/code], [code]master[/code], [code]slave[/code]). By default, methods are not exposed to networking (and RPCs). Also see [method rset] and [method rset_config] for properties.
+				Changes the RPC mode for the given [code]method[/code] to the given [code]mode[/code]. See [enum MultiplayerAPI.RPCMode]. An alternative is annotating methods and properties with the corresponding keywords ([code]remote[/code], [code]sync[/code], [code]master[/code], [code]slave[/code]). By default, methods are not exposed to networking (and RPCs). Also see [method rset] and [method rset_config] for properties.
 			</description>
 		</method>
 		<method name="rpc_id" qualifiers="vararg">
@@ -625,10 +631,10 @@
 			</return>
 			<argument index="0" name="property" type="String">
 			</argument>
-			<argument index="1" name="mode" type="int" enum="Node.RPCMode">
+			<argument index="1" name="mode" type="int" enum="MultiplayerAPI.RPCMode">
 			</argument>
 			<description>
-				Changes the RPC mode for the given [code]property[/code] to the given [code]mode[/code]. See [enum RPCMode]. An alternative is annotating methods and properties with the corresponding keywords ([code]remote[/code], [code]sync[/code], [code]master[/code], [code]slave[/code]). By default, properties are not exposed to networking (and RPCs). Also see [method rpc] and [method rpc_config] for methods.
+				Changes the RPC mode for the given [code]property[/code] to the given [code]mode[/code]. See [enum MultiplayerAPI.RPCMode]. An alternative is annotating methods and properties with the corresponding keywords ([code]remote[/code], [code]sync[/code], [code]master[/code], [code]slave[/code]). By default, properties are not exposed to networking (and RPCs). Also see [method rpc] and [method rpc_config] for methods.
 			</description>
 		</method>
 		<method name="rset_id">
@@ -731,6 +737,14 @@
 			</argument>
 			<description>
 				Enables or disabled internal processing for this node. Internal processing happens in isolation from the normal [method _process] calls and is used by some nodes internally to guarantee proper functioning even if the node is paused or processing is disabled for scripting ([method set_process]). Only useful for advanced uses to manipulate built-in nodes behaviour.
+			</description>
+		</method>
+		<method name="set_process_priority">
+			<return type="void">
+			</return>
+			<argument index="0" name="priority" type="int">
+			</argument>
+			<description>
 			</description>
 		</method>
 		<method name="set_process_unhandled_input">
@@ -859,21 +873,6 @@
 		</constant>
 		<constant name="NOTIFICATION_INTERNAL_PHYSICS_PROCESS" value="26">
 			Notification received every frame when the internal physics process flag is set (see [method set_physics_process_internal]).
-		</constant>
-		<constant name="RPC_MODE_DISABLED" value="0" enum="RPCMode">
-			Used with [method rpc_config] or [method rset_config] to disable a method or property for all RPC calls, making it unavailable. Default for all methods.
-		</constant>
-		<constant name="RPC_MODE_REMOTE" value="1" enum="RPCMode">
-			Used with [method rpc_config] or [method rset_config] to set a method to be called or a property to be changed only on the remote end, not locally. Analogous to the [code]remote[/code] keyword.
-		</constant>
-		<constant name="RPC_MODE_SYNC" value="2" enum="RPCMode">
-			Used with [method rpc_config] or [method rset_config] to set a method to be called or a property to be changed both on the remote end and locally. Analogous to the [code]sync[/code] keyword.
-		</constant>
-		<constant name="RPC_MODE_MASTER" value="3" enum="RPCMode">
-			Used with [method rpc_config] or [method rset_config] to set a method to be called or a property to be changed only on the network master for this node. Analogous to the [code]master[/code] keyword. See [method set_network_master].
-		</constant>
-		<constant name="RPC_MODE_SLAVE" value="4" enum="RPCMode">
-			Used with [method rpc_config] or [method rset_config] to set a method to be called or a property to be changed only on slaves for this node. Analogous to the [code]slave[/code] keyword. See [method set_network_master].
 		</constant>
 		<constant name="PAUSE_MODE_INHERIT" value="0" enum="PauseMode">
 			Inherits pause mode from the node's parent. For the root node, it is equivalent to PAUSE_MODE_STOP. Default.
