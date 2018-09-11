@@ -38,7 +38,7 @@ void CollisionObject2D::_notification(int p_what) {
 
 		case NOTIFICATION_ENTER_TREE: {
 
-			Transform2D global_transform = get_global_transform_with_canvas();
+			Transform2D global_transform = get_global_transform();
 
 			if (area)
 				Physics2DServer::get_singleton()->area_set_transform(rid, global_transform);
@@ -64,7 +64,7 @@ void CollisionObject2D::_notification(int p_what) {
 		} break;
 		case NOTIFICATION_TRANSFORM_CHANGED: {
 
-			Transform2D global_transform = get_global_transform_with_canvas();
+			Transform2D global_transform = get_global_transform();
 
 			if (only_update_transform_changes && global_transform == last_transform) {
 				return;
@@ -384,7 +384,7 @@ void CollisionObject2D::_bind_methods() {
 
 	BIND_VMETHOD(MethodInfo("_input_event", PropertyInfo(Variant::OBJECT, "viewport"), PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent"), PropertyInfo(Variant::INT, "shape_idx")));
 
-	ADD_SIGNAL(MethodInfo("input_event", PropertyInfo(Variant::OBJECT, "viewport"), PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent"), PropertyInfo(Variant::INT, "shape_idx")));
+	ADD_SIGNAL(MethodInfo("input_event", PropertyInfo(Variant::OBJECT, "viewport", PROPERTY_HINT_RESOURCE_TYPE, "Node"), PropertyInfo(Variant::OBJECT, "event", PROPERTY_HINT_RESOURCE_TYPE, "InputEvent"), PropertyInfo(Variant::INT, "shape_idx")));
 	ADD_SIGNAL(MethodInfo("mouse_entered"));
 	ADD_SIGNAL(MethodInfo("mouse_exited"));
 

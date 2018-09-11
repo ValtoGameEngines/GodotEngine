@@ -258,19 +258,40 @@ void EditorPropertyPath::setup(const Vector<String> &p_extensions, bool p_folder
 	global = p_global;
 }
 
+void EditorPropertyPath::_notification(int p_what) {
+
+	if (p_what == NOTIFICATION_ENTER_TREE || p_what == NOTIFICATION_THEME_CHANGED) {
+		path_edit->set_icon(get_icon("Folder", "EditorIcons"));
+	}
+}
+
+void EditorPropertyPath::_path_focus_exited() {
+
+	_path_selected(path->get_text());
+}
+
 void EditorPropertyPath::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("_path_pressed"), &EditorPropertyPath::_path_pressed);
 	ClassDB::bind_method(D_METHOD("_path_selected"), &EditorPropertyPath::_path_selected);
+	ClassDB::bind_method(D_METHOD("_path_focus_exited"), &EditorPropertyPath::_path_focus_exited);
 }
 
 EditorPropertyPath::EditorPropertyPath() {
-	path = memnew(Button);
-	path->set_clip_text(true);
-	add_child(path);
+	HBoxContainer *path_hb = memnew(HBoxContainer);
+	add_child(path_hb);
+	path = memnew(LineEdit);
+	path_hb->add_child(path);
+	path->connect("text_entered", this, "_path_selected");
+	path->connect("focus_exited", this, "_path_focus_exited");
+	path->set_h_size_flags(SIZE_EXPAND_FILL);
+
+	path_edit = memnew(Button);
+	path_edit->set_clip_text(true);
+	path_hb->add_child(path_edit);
 	add_focusable(path);
 	dialog = NULL;
-	path->connect("pressed", this, "_path_pressed");
+	path_edit->connect("pressed", this, "_path_pressed");
 	folder = false;
 	global = false;
 }
@@ -630,6 +651,7 @@ public:
 			int h = bsize * 2 + 1;
 			int vofs = (rect.size.height - h) / 2;
 
+			Color color = get_color("highlight_color", "Editor");
 			for (int i = 0; i < 2; i++) {
 
 				Point2 ofs(4, vofs);
@@ -646,7 +668,8 @@ public:
 					uint32_t idx = i * 10 + j;
 					bool on = value & (1 << idx);
 					Rect2 rect = Rect2(o, Size2(bsize, bsize));
-					draw_rect(rect, Color(0, 0, 0, on ? 0.8 : 0.3));
+					color.a = on ? 0.6 : 0.2;
+					draw_rect(rect, color);
 					flag_rects.push_back(rect);
 				}
 			}

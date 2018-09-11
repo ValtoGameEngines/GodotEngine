@@ -526,7 +526,7 @@ static double _bicubic_interp_kernel(double x) {
 	return bc;
 }
 
-template <int CC, class T = uint8_t>
+template <int CC, class T>
 static void _scale_cubic(const uint8_t *__restrict p_src, uint8_t *__restrict p_dst, uint32_t p_src_width, uint32_t p_src_height, uint32_t p_dst_width, uint32_t p_dst_height) {
 
 	// get source image size
@@ -610,7 +610,7 @@ static void _scale_cubic(const uint8_t *__restrict p_src, uint8_t *__restrict p_
 	}
 }
 
-template <int CC, class T = uint8_t>
+template <int CC, class T>
 static void _scale_bilinear(const uint8_t *__restrict p_src, uint8_t *__restrict p_dst, uint32_t p_src_width, uint32_t p_src_height, uint32_t p_dst_width, uint32_t p_dst_height) {
 
 	enum {
@@ -701,7 +701,7 @@ static void _scale_bilinear(const uint8_t *__restrict p_src, uint8_t *__restrict
 	}
 }
 
-template <int CC, class T = uint8_t>
+template <int CC, class T>
 static void _scale_nearest(const uint8_t *__restrict p_src, uint8_t *__restrict p_dst, uint32_t p_src_width, uint32_t p_src_height, uint32_t p_dst_width, uint32_t p_dst_height) {
 
 	for (uint32_t i = 0; i < p_dst_height; i++) {
@@ -817,10 +817,10 @@ void Image::resize(int p_width, int p_height, Interpolation p_interpolation) {
 
 			if (format >= FORMAT_L8 && format <= FORMAT_RGBA8) {
 				switch (get_format_pixel_size(format)) {
-					case 1: _scale_nearest<1>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 2: _scale_nearest<2>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 3: _scale_nearest<3>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 4: _scale_nearest<4>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 1: _scale_nearest<1, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 2: _scale_nearest<2, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 3: _scale_nearest<3, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 4: _scale_nearest<4, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
 				}
 			} else if (format >= FORMAT_RF && format <= FORMAT_RGBAF) {
 				switch (get_format_pixel_size(format)) {
@@ -881,10 +881,10 @@ void Image::resize(int p_width, int p_height, Interpolation p_interpolation) {
 
 				if (format >= FORMAT_L8 && format <= FORMAT_RGBA8) {
 					switch (get_format_pixel_size(format)) {
-						case 1: _scale_bilinear<1>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
-						case 2: _scale_bilinear<2>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
-						case 3: _scale_bilinear<3>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
-						case 4: _scale_bilinear<4>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
+						case 1: _scale_bilinear<1, uint8_t>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
+						case 2: _scale_bilinear<2, uint8_t>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
+						case 3: _scale_bilinear<3, uint8_t>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
+						case 4: _scale_bilinear<4, uint8_t>(src_ptr, w_ptr, src_width, src_height, p_width, p_height); break;
 					}
 				} else if (format >= FORMAT_RF && format <= FORMAT_RGBAF) {
 					switch (get_format_pixel_size(format)) {
@@ -914,10 +914,10 @@ void Image::resize(int p_width, int p_height, Interpolation p_interpolation) {
 
 			if (format >= FORMAT_L8 && format <= FORMAT_RGBA8) {
 				switch (get_format_pixel_size(format)) {
-					case 1: _scale_cubic<1>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 2: _scale_cubic<2>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 3: _scale_cubic<3>(r_ptr, w_ptr, width, height, p_width, p_height); break;
-					case 4: _scale_cubic<4>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 1: _scale_cubic<1, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 2: _scale_cubic<2, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 3: _scale_cubic<3, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
+					case 4: _scale_cubic<4, uint8_t>(r_ptr, w_ptr, width, height, p_width, p_height); break;
 				}
 			} else if (format >= FORMAT_RF && format <= FORMAT_RGBAF) {
 				switch (get_format_pixel_size(format)) {
@@ -1133,20 +1133,23 @@ template <class Component, int CC, bool renormalize,
 static void _generate_po2_mipmap(const Component *p_src, Component *p_dst, uint32_t p_width, uint32_t p_height) {
 
 	//fast power of 2 mipmap generation
-	uint32_t dst_w = p_width >> 1;
-	uint32_t dst_h = p_height >> 1;
+	uint32_t dst_w = MAX(p_width >> 1, 1);
+	uint32_t dst_h = MAX(p_height >> 1, 1);
+
+	int right_step = (p_width == 1) ? 0 : CC;
+	int down_step = (p_height == 1) ? 0 : (p_width * CC);
 
 	for (uint32_t i = 0; i < dst_h; i++) {
 
-		const Component *rup_ptr = &p_src[i * 2 * p_width * CC];
-		const Component *rdown_ptr = rup_ptr + p_width * CC;
+		const Component *rup_ptr = &p_src[i * 2 * down_step];
+		const Component *rdown_ptr = rup_ptr + down_step;
 		Component *dst_ptr = &p_dst[i * dst_w * CC];
 		uint32_t count = dst_w;
 
 		while (count--) {
 
 			for (int j = 0; j < CC; j++) {
-				average_func(dst_ptr[j], rup_ptr[j], rup_ptr[j + CC], rdown_ptr[j], rdown_ptr[j + CC]);
+				average_func(dst_ptr[j], rup_ptr[j], rup_ptr[j + right_step], rdown_ptr[j], rdown_ptr[j + right_step]);
 			}
 
 			if (renormalize) {
@@ -1154,8 +1157,8 @@ static void _generate_po2_mipmap(const Component *p_src, Component *p_dst, uint3
 			}
 
 			dst_ptr += CC;
-			rup_ptr += CC * 2;
-			rdown_ptr += CC * 2;
+			rup_ptr += right_step * 2;
+			rdown_ptr += right_step * 2;
 		}
 	}
 }
@@ -1313,7 +1316,7 @@ Error Image::generate_mipmaps(bool p_renormalize) {
 	int prev_h = height;
 	int prev_w = width;
 
-	for (int i = 1; i < mmcount; i++) {
+	for (int i = 1; i <= mmcount; i++) {
 
 		int ofs, w, h;
 		_get_mipmap_offset_and_size(i, ofs, w, h);
@@ -1783,7 +1786,7 @@ Error Image::compress(CompressMode p_mode, CompressSource p_source, float p_loss
 		case COMPRESS_S3TC: {
 
 			ERR_FAIL_COND_V(!_image_compress_bc_func, ERR_UNAVAILABLE);
-			_image_compress_bc_func(this, p_source);
+			_image_compress_bc_func(this, p_lossy_quality, p_source);
 		} break;
 		case COMPRESS_PVRTC2: {
 
@@ -2146,7 +2149,7 @@ ImageMemLoadFunc Image::_png_mem_loader_func = NULL;
 ImageMemLoadFunc Image::_jpg_mem_loader_func = NULL;
 ImageMemLoadFunc Image::_webp_mem_loader_func = NULL;
 
-void (*Image::_image_compress_bc_func)(Image *, Image::CompressSource) = NULL;
+void (*Image::_image_compress_bc_func)(Image *, float, Image::CompressSource) = NULL;
 void (*Image::_image_compress_bptc_func)(Image *, float, Image::CompressSource) = NULL;
 void (*Image::_image_compress_pvrtc2_func)(Image *) = NULL;
 void (*Image::_image_compress_pvrtc4_func)(Image *) = NULL;
@@ -2667,7 +2670,7 @@ void Image::_bind_methods() {
 	BIND_ENUM_CONSTANT(COMPRESS_SOURCE_NORMAL);
 }
 
-void Image::set_compress_bc_func(void (*p_compress_func)(Image *, CompressSource)) {
+void Image::set_compress_bc_func(void (*p_compress_func)(Image *, float, CompressSource)) {
 
 	_image_compress_bc_func = p_compress_func;
 }

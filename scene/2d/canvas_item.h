@@ -139,8 +139,6 @@ class CanvasItem : public Node {
 
 	GDCLASS(CanvasItem, Node);
 
-	friend class CanvasLayer;
-
 public:
 	enum BlendMode {
 
@@ -347,6 +345,8 @@ public:
 
 	void set_notify_transform(bool p_enable);
 	bool is_transform_notification_enabled() const;
+
+	void force_update_transform();
 
 	// Used by control nodes to retreive the parent's anchorable area
 	virtual Rect2 get_anchorable_rect() const { return Rect2(0, 0, 0, 0); };

@@ -1,3 +1,33 @@
+/*************************************************************************/
+/*  animation_blend_tree_editor_plugin.cpp                               */
+/*************************************************************************/
+/*                       This file is part of:                           */
+/*                           GODOT ENGINE                                */
+/*                      https://godotengine.org                          */
+/*************************************************************************/
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/*                                                                       */
+/* Permission is hereby granted, free of charge, to any person obtaining */
+/* a copy of this software and associated documentation files (the       */
+/* "Software"), to deal in the Software without restriction, including   */
+/* without limitation the rights to use, copy, modify, merge, publish,   */
+/* distribute, sublicense, and/or sell copies of the Software, and to    */
+/* permit persons to whom the Software is furnished to do so, subject to */
+/* the following conditions:                                             */
+/*                                                                       */
+/* The above copyright notice and this permission notice shall be        */
+/* included in all copies or substantial portions of the Software.       */
+/*                                                                       */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,       */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF    */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.*/
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY  */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
+/*************************************************************************/
+
 #include "animation_blend_tree_editor_plugin.h"
 
 #include "core/io/resource_loader.h"
@@ -38,7 +68,6 @@ void AnimationNodeBlendTreeEditor::remove_custom_type(const Ref<Script> &p_scrip
 
 void AnimationNodeBlendTreeEditor::_update_options_menu() {
 
-	print_line("update options");
 	add_node->get_popup()->clear();
 	for (int i = 0; i < add_options.size(); i++) {
 		add_node->get_popup()->add_item(add_options[i].name, i);
@@ -650,8 +679,9 @@ void AnimationNodeBlendTreeEditor::_notification(int p_what) {
 		blend_tree->get_node_connections(&conns);
 		for (List<AnimationNodeBlendTree::NodeConnection>::Element *E = conns.front(); E; E = E->next()) {
 			float activity = 0;
+			StringName path = AnimationTreeEditor::get_singleton()->get_base_path() + E->get().input_node;
 			if (AnimationTreeEditor::get_singleton()->get_tree() && !AnimationTreeEditor::get_singleton()->get_tree()->is_state_invalid()) {
-				activity = blend_tree->get_connection_activity(E->get().input_node, E->get().input_index);
+				activity = AnimationTreeEditor::get_singleton()->get_tree()->get_connection_activity(path, E->get().input_index);
 			}
 			graph->set_connection_activity(E->get().output_node, 0, E->get().input_node, E->get().input_index, activity);
 		}
@@ -775,6 +805,30 @@ void AnimationNodeBlendTreeEditor::_node_renamed(const String &p_text, Ref<Anima
 		if (pname.begins_with(base_path + prev_name)) {
 			String new_name = pname.replace_first(base_path + prev_name, base_path + name);
 			visible_properties[i]->set_object_and_property(visible_properties[i]->get_edited_object(), new_name);
+		}
+	}
+
+	//recreate connections
+	graph->clear_connections();
+
+	List<AnimationNodeBlendTree::NodeConnection> connections;
+	blend_tree->get_node_connections(&connections);
+
+	for (List<AnimationNodeBlendTree::NodeConnection>::Element *E = connections.front(); E; E = E->next()) {
+
+		StringName from = E->get().output_node;
+		StringName to = E->get().input_node;
+		int to_idx = E->get().input_index;
+
+		graph->connect_node(from, 0, to, to_idx);
+	}
+
+	//update animations
+	for (Map<StringName, ProgressBar *>::Element *E = animations.front(); E; E = E->next()) {
+		if (E->key() == prev_name) {
+			animations[new_name] = animations[prev_name];
+			animations.erase(prev_name);
+			break;
 		}
 	}
 }

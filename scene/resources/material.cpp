@@ -924,7 +924,7 @@ void SpatialMaterial::_update_shader() {
 
 		if (flags[FLAG_UV1_USE_TRIPLANAR]) {
 
-			code += "\tvec4 detail_mask_tex = triplanar_texture(texture_detail_mask,uv1_power_normal);\n";
+			code += "\tvec4 detail_mask_tex = triplanar_texture(texture_detail_mask,uv1_power_normal,uv1_triplanar_pos);\n";
 		} else {
 			code += "\tvec4 detail_mask_tex = texture(texture_detail_mask,base_uv);\n";
 		}
@@ -1935,7 +1935,7 @@ void SpatialMaterial::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_depth_draw_mode", PROPERTY_HINT_ENUM, "Opaque Only,Always,Never,Opaque Pre-Pass"), "set_depth_draw_mode", "get_depth_draw_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "params_line_width", PROPERTY_HINT_RANGE, "0.1,128,0.1"), "set_line_width", "get_line_width");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "params_point_size", PROPERTY_HINT_RANGE, "0.1,128,0.1"), "set_point_size", "get_point_size");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_billboard_mode", PROPERTY_HINT_ENUM, "Disabled,Enabled,Y-Billboard,Particle Billboard1"), "set_billboard_mode", "get_billboard_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "params_billboard_mode", PROPERTY_HINT_ENUM, "Disabled,Enabled,Y-Billboard,Particle Billboard"), "set_billboard_mode", "get_billboard_mode");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "params_billboard_keep_scale"), "set_flag", "get_flag", FLAG_BILLBOARD_KEEP_SCALE);
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "params_grow"), "set_grow_enabled", "is_grow_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "params_grow_amount", PROPERTY_HINT_RANGE, "-16,10,0.01"), "set_grow", "get_grow");

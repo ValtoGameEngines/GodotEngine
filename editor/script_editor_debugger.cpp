@@ -396,7 +396,6 @@ void ScriptEditorDebugger::_parse_message(const String &p_msg, const Array &p_da
 		dobreak->set_disabled(false);
 		docontinue->set_disabled(true);
 		emit_signal("breaked", false, false, Variant());
-		//tabs->set_current_tab(0);
 		profiler->set_enabled(true);
 		profiler->disable_seeking();
 		inspector->edit(NULL);
@@ -1133,7 +1132,6 @@ void ScriptEditorDebugger::_notification(int p_what) {
 						}
 
 						message_type = cmd;
-						//print_line("GOT: "+message_type);
 
 						ret = ppeer->get_var(cmd);
 						if (ret != OK) {
@@ -1285,15 +1283,13 @@ void ScriptEditorDebugger::_profiler_activate(bool p_enable) {
 		max_funcs = CLAMP(max_funcs, 16, 512);
 		msg.push_back(max_funcs);
 		ppeer->put_var(msg);
-
-		print_line("BEGIN PROFILING!");
+		print_verbose("Starting profiling.");
 
 	} else {
 		Array msg;
 		msg.push_back("stop_profiling");
 		ppeer->put_var(msg);
-
-		print_line("END PROFILING!");
+		print_verbose("Ending profiling.");
 	}
 }
 
@@ -1430,8 +1426,6 @@ void ScriptEditorDebugger::_method_changed(Object *p_base, const StringName &p_n
 
 		return;
 	}
-
-	//print_line("method");
 }
 
 void ScriptEditorDebugger::_property_changed(Object *p_base, const StringName &p_property, const Variant &p_value) {
@@ -1500,8 +1494,6 @@ void ScriptEditorDebugger::_property_changed(Object *p_base, const StringName &p
 
 		return;
 	}
-
-	//print_line("prop");
 }
 
 void ScriptEditorDebugger::_method_changeds(void *p_ud, Object *p_base, const StringName &p_name, VARIANT_ARG_DECLARE) {
@@ -1953,10 +1945,8 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 		stack_dump->connect("cell_selected", this, "_stack_dump_frame_selected");
 		sc->add_child(stack_dump);
 
-		inspector = memnew(PropertyEditor);
+		inspector = memnew(EditorInspector);
 		inspector->set_h_size_flags(SIZE_EXPAND_FILL);
-		inspector->hide_top_label();
-		inspector->get_property_tree()->set_column_title(0, TTR("Variable"));
 		inspector->set_enable_capitalize_paths(false);
 		inspector->set_read_only(true);
 		inspector->connect("object_id_selected", this, "_scene_tree_property_select_object");
@@ -2187,7 +2177,6 @@ ScriptEditorDebugger::ScriptEditorDebugger(EditorNode *p_editor) {
 
 ScriptEditorDebugger::~ScriptEditorDebugger() {
 
-	//inspector->edit(NULL);
 	memdelete(variables);
 
 	ppeer->set_stream_peer(Ref<StreamPeer>());
