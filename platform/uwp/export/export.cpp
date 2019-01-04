@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -29,16 +29,16 @@
 /*************************************************************************/
 
 #include "export.h"
-#include "bind/core_bind.h"
+#include "core/bind/core_bind.h"
+#include "core/io/marshalls.h"
+#include "core/io/zip_io.h"
+#include "core/object.h"
+#include "core/os/file_access.h"
+#include "core/project_settings.h"
+#include "core/version.h"
 #include "editor/editor_export.h"
 #include "editor/editor_node.h"
-#include "io/marshalls.h"
-#include "io/zip_io.h"
-#include "object.h"
-#include "os/file_access.h"
 #include "platform/uwp/logo.gen.h"
-#include "project_settings.h"
-#include "version.h"
 
 #include "thirdparty/minizip/unzip.h"
 #include "thirdparty/minizip/zip.h"
@@ -1021,8 +1021,10 @@ public:
 		return "UWP";
 	}
 
-	virtual String get_binary_extension(const Ref<EditorExportPreset> &p_preset) const {
-		return "appx";
+	virtual List<String> get_binary_extensions(const Ref<EditorExportPreset> &p_preset) const {
+		List<String> list;
+		list.push_back("appx");
+		return list;
 	}
 
 	virtual Ref<Texture> get_logo() const {
@@ -1132,7 +1134,7 @@ public:
 			} break;
 		}
 
-		if (!exists_export_template("uwp_" + platform_infix + "_debug.zip", &err) || !exists_export_template("uwp_" + platform_infix + "_debug.zip", &err)) {
+		if (!exists_export_template("uwp_" + platform_infix + "_debug.zip", &err) || !exists_export_template("uwp_" + platform_infix + "_release.zip", &err)) {
 			valid = false;
 			r_missing_templates = true;
 		}

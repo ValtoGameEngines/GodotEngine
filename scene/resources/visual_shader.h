@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,8 +31,8 @@
 #ifndef VISUAL_SHADER_H
 #define VISUAL_SHADER_H
 
+#include "core/string_builder.h"
 #include "scene/resources/shader.h"
-#include "string_builder.h"
 
 class VisualShaderNodeUniform;
 class VisualShaderNode;
@@ -140,6 +140,8 @@ public:
 
 	void set_mode(Mode p_mode);
 	virtual Mode get_mode() const;
+
+	virtual bool is_text_shader() const;
 
 	void set_graph_offset(const Vector2 &p_offset);
 	Vector2 get_graph_offset() const;

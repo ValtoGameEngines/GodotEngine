@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,13 +30,13 @@
 
 #include "os.h"
 
-#include "dir_access.h"
-#include "input.h"
-#include "os/file_access.h"
-#include "os/midi_driver.h"
-#include "project_settings.h"
+#include "core/os/dir_access.h"
+#include "core/os/file_access.h"
+#include "core/os/input.h"
+#include "core/os/midi_driver.h"
+#include "core/project_settings.h"
+#include "core/version_generated.gen.h"
 #include "servers/audio_server.h"
-#include "version_generated.gen.h"
 
 #include <stdarg.h>
 
@@ -59,6 +59,9 @@ uint64_t OS::get_unix_time() const {
 	return 0;
 };
 uint64_t OS::get_system_time_secs() const {
+	return 0;
+}
+uint64_t OS::get_system_time_msecs() const {
 	return 0;
 }
 void OS::debug_break(){

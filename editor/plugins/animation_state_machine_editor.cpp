@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,10 +31,10 @@
 #include "animation_state_machine_editor.h"
 
 #include "core/io/resource_loader.h"
+#include "core/math/delaunay.h"
+#include "core/os/input.h"
+#include "core/os/keyboard.h"
 #include "core/project_settings.h"
-#include "math/delaunay.h"
-#include "os/input.h"
-#include "os/keyboard.h"
 #include "scene/animation/animation_blend_tree.h"
 #include "scene/animation/animation_player.h"
 #include "scene/gui/menu_button.h"
@@ -118,7 +118,7 @@ void AnimationNodeStateMachineEditor::_state_machine_gui_input(const Ref<InputEv
 			menu->add_item(TTR("Paste"), MENU_PASTE);
 		}
 		menu->add_separator();
-		menu->add_item(TTR("Load.."), MENU_LOAD_FILE);
+		menu->add_item(TTR("Load..."), MENU_LOAD_FILE);
 
 		menu->set_global_position(state_machine_draw->get_global_transform().xform(mb->get_position()));
 		menu->popup();
@@ -572,8 +572,8 @@ void AnimationNodeStateMachineEditor::_state_machine_draw() {
 
 	Ref<AnimationNodeStateMachinePlayback> playback = AnimationTreeEditor::get_singleton()->get_tree()->get(AnimationTreeEditor::get_singleton()->get_base_path() + "playback");
 
-	Ref<StyleBox> style = get_stylebox("frame", "GraphNode");
-	Ref<StyleBox> style_selected = get_stylebox("selectedframe", "GraphNode");
+	Ref<StyleBox> style = get_stylebox("state_machine_frame", "GraphNode");
+	Ref<StyleBox> style_selected = get_stylebox("state_machine_selectedframe", "GraphNode");
 
 	Ref<Font> font = get_font("title_font", "GraphNode");
 	Color font_color = get_color("title_color", "GraphNode");
@@ -663,7 +663,7 @@ void AnimationNodeStateMachineEditor::_state_machine_draw() {
 
 	transition_lines.clear();
 
-	//draw conecting line for potential new transition
+	//draw connecting line for potential new transition
 	if (connecting) {
 		Vector2 from = (state_machine->get_node_position(connecting_from) * EDSCALE) - state_machine->get_graph_offset() * EDSCALE;
 		Vector2 to;
@@ -849,7 +849,7 @@ void AnimationNodeStateMachineEditor::_state_machine_pos_draw() {
 		return;
 
 	int idx = -1;
-	for (int i = 0; node_rects.size(); i++) {
+	for (int i = 0; i < node_rects.size(); i++) {
 		if (node_rects[i].node_name == playback->get_current_node()) {
 			idx = i;
 			break;
@@ -1064,6 +1064,7 @@ void AnimationNodeStateMachineEditor::_open_editor(const String &p_name) {
 }
 
 void AnimationNodeStateMachineEditor::_removed_from_graph() {
+
 	EditorNode::get_singleton()->edit_item(NULL);
 }
 
@@ -1073,7 +1074,9 @@ void AnimationNodeStateMachineEditor::_name_edited(const String &p_text) {
 
 	ERR_FAIL_COND(new_name == "" || new_name.find(".") != -1 || new_name.find("/") != -1)
 
-	ERR_FAIL_COND(new_name == prev_name);
+	if (new_name == prev_name) {
+		return; // Nothing to do.
+	}
 
 	String base_name = new_name;
 	int base = 1;
@@ -1097,7 +1100,13 @@ void AnimationNodeStateMachineEditor::_name_edited(const String &p_text) {
 	name_edit->hide();
 }
 
+void AnimationNodeStateMachineEditor::_name_edited_focus_out() {
+
+	_name_edited(name_edit->get_text());
+}
+
 void AnimationNodeStateMachineEditor::_scroll_changed(double) {
+
 	if (updating)
 		return;
 
@@ -1111,7 +1120,7 @@ void AnimationNodeStateMachineEditor::_erase_selected() {
 		updating = true;
 		undo_redo->create_action("Node Removed");
 		undo_redo->add_do_method(state_machine.ptr(), "remove_node", selected_node);
-		undo_redo->add_undo_method(state_machine.ptr(), "add_node", selected_node, state_machine->get_node(selected_node));
+		undo_redo->add_undo_method(state_machine.ptr(), "add_node", selected_node, state_machine->get_node(selected_node), state_machine->get_node_position(selected_node));
 		for (int i = 0; i < state_machine->get_transition_count(); i++) {
 			String from = state_machine->get_transition_from(i);
 			String to = state_machine->get_transition_to(i);
@@ -1215,6 +1224,7 @@ void AnimationNodeStateMachineEditor::_bind_methods() {
 	ClassDB::bind_method("_add_animation_type", &AnimationNodeStateMachineEditor::_add_animation_type);
 
 	ClassDB::bind_method("_name_edited", &AnimationNodeStateMachineEditor::_name_edited);
+	ClassDB::bind_method("_name_edited_focus_out", &AnimationNodeStateMachineEditor::_name_edited_focus_out);
 
 	ClassDB::bind_method("_removed_from_graph", &AnimationNodeStateMachineEditor::_removed_from_graph);
 
@@ -1267,7 +1277,7 @@ AnimationNodeStateMachineEditor::AnimationNodeStateMachineEditor() {
 	top_hb->add_child(tool_erase_hb);
 	tool_erase_hb->add_child(memnew(VSeparator));
 	tool_erase = memnew(ToolButton);
-	tool_erase->set_tooltip(TTR("Remove selected node or transition"));
+	tool_erase->set_tooltip(TTR("Remove selected node or transition."));
 	tool_erase_hb->add_child(tool_erase);
 	tool_erase->connect("pressed", this, "_erase_selected");
 	tool_erase->set_disabled(true);
@@ -1354,6 +1364,7 @@ AnimationNodeStateMachineEditor::AnimationNodeStateMachineEditor() {
 	state_machine_draw->add_child(name_edit);
 	name_edit->hide();
 	name_edit->connect("text_entered", this, "_name_edited");
+	name_edit->connect("focus_exited", this, "_name_edited_focus_out");
 	name_edit->set_as_toplevel(true);
 
 	open_file = memnew(EditorFileDialog);

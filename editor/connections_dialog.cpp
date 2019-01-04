@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,10 +30,10 @@
 
 #include "connections_dialog.h"
 
+#include "core/print_string.h"
 #include "editor_node.h"
 #include "editor_settings.h"
 #include "plugins/script_editor_plugin.h"
-#include "print_string.h"
 #include "scene/gui/label.h"
 #include "scene/gui/popup_menu.h"
 
@@ -432,6 +432,9 @@ void ConnectionsDock::_make_or_edit_connection() {
 	if (add_script_function) {
 		// pick up args here before "it" is deleted by update_tree
 		script_function_args = it->get_metadata(0).operator Dictionary()["args"];
+		for (int i = 0; i < cToMake.binds.size(); i++) {
+			script_function_args.append("extra_arg_" + itos(i));
+		}
 	}
 
 	if (connect_dialog->is_editing()) {
@@ -497,7 +500,7 @@ void ConnectionsDock::_disconnect(TreeItem &item) {
 }
 
 /*
-Break all conections of currently selected signal.
+Break all connections of currently selected signal.
 Can undo-redo as a single action.
 */
 void ConnectionsDock::_disconnect_all() {

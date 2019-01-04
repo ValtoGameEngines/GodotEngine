@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,7 +30,7 @@
 
 #include "item_list_editor_plugin.h"
 
-#include "io/resource_loader.h"
+#include "core/io/resource_loader.h"
 
 bool ItemListPlugin::_set(const StringName &p_name, const Variant &p_value) {
 
@@ -265,6 +265,9 @@ void ItemListEditor::_notification(int p_notification) {
 
 		add_button->set_icon(get_icon("Add", "EditorIcons"));
 		del_button->set_icon(get_icon("Remove", "EditorIcons"));
+	} else if (p_notification == NOTIFICATION_READY) {
+
+		get_tree()->connect("node_removed", this, "_node_removed");
 	}
 }
 
@@ -317,10 +320,7 @@ void ItemListEditor::edit(Node *p_item_list) {
 			item_plugins[i]->set_object(p_item_list);
 			property_editor->edit(item_plugins[i]);
 
-			if (has_icon(item_list->get_class(), "EditorIcons"))
-				toolbar_button->set_icon(get_icon(item_list->get_class(), "EditorIcons"));
-			else
-				toolbar_button->set_icon(Ref<Texture>());
+			toolbar_button->set_icon(EditorNode::get_singleton()->get_object_icon(item_list, ""));
 
 			selected_idx = i;
 			return;
@@ -344,6 +344,7 @@ bool ItemListEditor::handles(Object *p_object) const {
 
 void ItemListEditor::_bind_methods() {
 
+	ClassDB::bind_method("_node_removed", &ItemListEditor::_node_removed);
 	ClassDB::bind_method("_edit_items", &ItemListEditor::_edit_items);
 	ClassDB::bind_method("_add_button", &ItemListEditor::_add_pressed);
 	ClassDB::bind_method("_delete_button", &ItemListEditor::_delete_pressed);
@@ -352,8 +353,6 @@ void ItemListEditor::_bind_methods() {
 ItemListEditor::ItemListEditor() {
 
 	selected_idx = -1;
-
-	add_child(memnew(VSeparator));
 
 	toolbar_button = memnew(ToolButton);
 	toolbar_button->set_text(TTR("Items"));
