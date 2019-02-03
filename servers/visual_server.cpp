@@ -2260,6 +2260,9 @@ void VisualServer::_bind_methods() {
 	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_NONE);
 	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_8BIT);
 	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_FLOAT);
+	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_NONE);
+	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_8BIT);
+	BIND_ENUM_CONSTANT(MULTIMESH_CUSTOM_DATA_FLOAT);
 
 	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ONCE);
 	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ALWAYS);
@@ -2403,7 +2406,7 @@ VisualServer::VisualServer() {
 	GLOBAL_DEF("rendering/quality/shading/force_blinn_over_ggx.mobile", true);
 
 	GLOBAL_DEF("rendering/quality/depth_prepass/enable", true);
-	GLOBAL_DEF("rendering/quality/depth_prepass/disable_for_vendors", "PowerVR,Mali,Adreno");
+	GLOBAL_DEF("rendering/quality/depth_prepass/disable_for_vendors", "PowerVR,Mali,Adreno,Apple");
 
 	GLOBAL_DEF("rendering/quality/filters/use_nearest_mipmap_filter", false);
 }

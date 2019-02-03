@@ -1181,7 +1181,11 @@ static bool _guess_identifier_type(const GDScriptCompletionContext &p_context, c
 				c.line = op->line;
 				c.block = blk;
 				if (_guess_expression_type(p_context, op->arguments[1], r_type)) {
-					r_type.type.is_meta_type = false;
+					r_type.type.is_meta_type = false; // Right-hand of `is` will be a meta type, but the left-hand value is not
+					// Not an assignment, it shouldn't carry any value
+					r_type.value = Variant();
+					r_type.assigned_expression = NULL;
+
 					return true;
 				}
 			}
@@ -2442,9 +2446,13 @@ Error GDScriptLanguage::complete_code(const String &p_code, const String &p_base
 	context._class = parser.get_completion_class();
 	context.block = parser.get_completion_block();
 	context.function = parser.get_completion_function();
-	context.base = p_owner;
-	context.base_path = p_base_path;
 	context.line = parser.get_completion_line();
+
+	if (!context._class || context._class->owner == NULL) {
+		context.base = p_owner;
+		context.base_path = p_base_path;
+	}
+
 	bool is_function = false;
 
 	switch (parser.get_completion_type()) {

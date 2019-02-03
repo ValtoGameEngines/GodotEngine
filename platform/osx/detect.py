@@ -42,7 +42,7 @@ def configure(env):
 
     if (env["target"] == "release"):
         if (env["optimize"] == "speed"): #optimize for speed (default)
-            env.Prepend(CCFLAGS=['-O3', '-ffast-math', '-fomit-frame-pointer', '-ftree-vectorize', '-msse2'])
+            env.Prepend(CCFLAGS=['-O3', '-fomit-frame-pointer', '-ftree-vectorize', '-msse2'])
         else: #optimize for size
             env.Prepend(CCFLAGS=['-Os','-ftree-vectorize', '-msse2'])
 
@@ -126,7 +126,7 @@ def configure(env):
 
     env.Append(CPPPATH=['#platform/osx'])
     env.Append(CPPFLAGS=['-DOSX_ENABLED', '-DUNIX_ENABLED', '-DGLES_ENABLED', '-DAPPLE_STYLE_KEYS', '-DCOREAUDIO_ENABLED', '-DCOREMIDI_ENABLED'])
-    env.Append(LINKFLAGS=['-framework', 'Cocoa', '-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'AudioUnit', '-framework', 'CoreAudio', '-framework', 'CoreMIDI', '-lz', '-framework', 'IOKit', '-framework', 'ForceFeedback'])
+    env.Append(LINKFLAGS=['-framework', 'Cocoa', '-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'AudioUnit', '-framework', 'CoreAudio', '-framework', 'CoreMIDI', '-lz', '-framework', 'IOKit', '-framework', 'ForceFeedback', '-framework', 'CoreVideo'])
     env.Append(LIBS=['pthread'])
 
     env.Append(CPPFLAGS=['-mmacosx-version-min=10.9'])

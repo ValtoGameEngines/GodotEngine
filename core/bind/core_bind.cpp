@@ -592,17 +592,17 @@ struct Time {
 };
 */
 
-int _OS::get_static_memory_usage() const {
+uint64_t _OS::get_static_memory_usage() const {
 
 	return OS::get_singleton()->get_static_memory_usage();
 }
 
-int _OS::get_static_memory_peak_usage() const {
+uint64_t _OS::get_static_memory_peak_usage() const {
 
 	return OS::get_singleton()->get_static_memory_peak_usage();
 }
 
-int _OS::get_dynamic_memory_usage() const {
+uint64_t _OS::get_dynamic_memory_usage() const {
 
 	return OS::get_singleton()->get_dynamic_memory_usage();
 }
@@ -2423,7 +2423,7 @@ void _Thread::_start_func(void *ud) {
 			} break;
 			case Variant::CallError::CALL_ERROR_TOO_FEW_ARGUMENTS: {
 
-				reason = "Too Many Arguments";
+				reason = "Too Few Arguments";
 			} break;
 			case Variant::CallError::CALL_ERROR_INVALID_METHOD: {
 

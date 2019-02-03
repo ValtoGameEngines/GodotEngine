@@ -470,6 +470,8 @@ private:
 	void _dropped_files(const Vector<String> &p_files, int p_screen);
 	String _recent_scene;
 
+	void _exit_editor();
+
 	bool convert_old;
 
 	void _unhandled_input(const Ref<InputEvent> &p_event);
@@ -780,7 +782,8 @@ public:
 	void add_tool_submenu_item(const String &p_name, PopupMenu *p_submenu);
 	void remove_tool_menu_item(const String &p_name);
 
-	void save_all_scenes_and_restart();
+	void save_all_scenes();
+	void restart_editor();
 
 	void dim_editor(bool p_dimming);
 

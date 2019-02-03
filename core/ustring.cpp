@@ -58,6 +58,9 @@
 #define IS_DIGIT(m_d) ((m_d) >= '0' && (m_d) <= '9')
 #define IS_HEX_DIGIT(m_d) (((m_d) >= '0' && (m_d) <= '9') || ((m_d) >= 'a' && (m_d) <= 'f') || ((m_d) >= 'A' && (m_d) <= 'F'))
 
+const char CharString::_null = 0;
+const CharType String::_null = 0;
+
 bool is_symbol(CharType c) {
 	return c != '_' && ((c >= '!' && c <= '/') || (c >= ':' && c <= '@') || (c >= '[' && c <= '`') || (c >= '{' && c <= '~') || c == '\t' || c == ' ');
 }
@@ -2390,6 +2393,10 @@ int String::find(const char *p_str, int p_from) const {
 	return -1;
 }
 
+int String::find_char(CharType p_char, int p_from) const {
+	return _cowdata.find(p_char, p_from);
+}
+
 int String::findmk(const Vector<String> &p_keys, int p_from, int *r_key) const {
 
 	if (p_from < 0)
@@ -3060,7 +3067,7 @@ String String::lstrip(const String &p_chars) const {
 
 	for (beg = 0; beg < len; beg++) {
 
-		if (p_chars.find(&ptr()[beg]) == -1)
+		if (p_chars.find_char(get(beg)) == -1)
 			break;
 	}
 
@@ -3077,7 +3084,7 @@ String String::rstrip(const String &p_chars) const {
 
 	for (end = len - 1; end >= 0; end--) {
 
-		if (p_chars.find(&ptr()[end]) == -1)
+		if (p_chars.find_char(get(end)) == -1)
 			break;
 	}
 
@@ -3578,9 +3585,12 @@ bool String::is_valid_integer() const {
 
 bool String::is_valid_hex_number(bool p_with_prefix) const {
 
-	int from = 0;
 	int len = length();
 
+	if (len == 0)
+		return false;
+
+	int from = 0;
 	if (len != 1 && (operator[](0) == '+' || operator[](0) == '-'))
 		from++;
 
