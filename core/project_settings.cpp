@@ -75,11 +75,19 @@ String ProjectSettings::localize_path(const String &p_path) const {
 
 		memdelete(dir);
 
-		if (!cwd.begins_with(resource_path)) {
+		// Ensure that we end with a '/'.
+		// This is important to ensure that we do not wrongly localize the resource path
+		// in an absolute path that just happens to contain this string but points to a
+		// different folder (e.g. "/my/project" as resource_path would be contained in
+		// "/my/project_data", even though the latter is not part of res://.
+		// `plus_file("")` is an easy way to ensure we have a trailing '/'.
+		const String res_path = resource_path.plus_file("");
+
+		if (!cwd.begins_with(res_path)) {
 			return p_path;
 		};
 
-		return cwd.replace_first(resource_path, "res:/");
+		return cwd.replace_first(res_path, "res://");
 	} else {
 
 		memdelete(dir);
@@ -481,7 +489,7 @@ Error ProjectSettings::_load_settings_binary(const String p_path) {
 
 		memdelete(f);
 		ERR_EXPLAIN("Corrupted header in binary project.binary (not ECFG)");
-		ERR_FAIL_V(ERR_FILE_CORRUPT;)
+		ERR_FAIL_V(ERR_FILE_CORRUPT);
 	}
 
 	uint32_t count = f->get_32();
@@ -501,7 +509,7 @@ Error ProjectSettings::_load_settings_binary(const String p_path) {
 		d.resize(vlen);
 		f->get_buffer(d.ptrw(), vlen);
 		Variant value;
-		Error err = decode_variant(value, d.ptr(), d.size());
+		err = decode_variant(value, d.ptr(), d.size(), NULL, true);
 		ERR_EXPLAIN("Error decoding property: " + key);
 		ERR_CONTINUE(err != OK);
 		set(key, value);
@@ -571,10 +579,6 @@ Error ProjectSettings::_load_settings_text(const String p_path) {
 			section = next_tag.name;
 		}
 	}
-
-	memdelete(f);
-
-	return OK;
 }
 
 Error ProjectSettings::_load_settings_text_or_binary(const String p_text_path, const String p_bin_path) {
@@ -632,7 +636,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 	if (err != OK) {
 
 		ERR_EXPLAIN("Couldn't save project.binary at " + p_file);
-		ERR_FAIL_COND_V(err, err)
+		ERR_FAIL_COND_V(err, err);
 	}
 
 	uint8_t hdr[4] = { 'E', 'C', 'F', 'G' };
@@ -656,7 +660,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 		file->store_string(key);
 
 		int len;
-		Error err = encode_variant(p_custom_features, NULL, len);
+		err = encode_variant(p_custom_features, NULL, len, false);
 		if (err != OK) {
 			memdelete(file);
 			ERR_FAIL_V(err);
@@ -665,7 +669,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 		Vector<uint8_t> buff;
 		buff.resize(len);
 
-		err = encode_variant(p_custom_features, buff.ptrw(), len);
+		err = encode_variant(p_custom_features, buff.ptrw(), len, false);
 		if (err != OK) {
 			memdelete(file);
 			ERR_FAIL_V(err);
@@ -694,7 +698,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 			file->store_string(key);
 
 			int len;
-			Error err = encode_variant(value, NULL, len);
+			err = encode_variant(value, NULL, len, true);
 			if (err != OK)
 				memdelete(file);
 			ERR_FAIL_COND_V(err != OK, ERR_INVALID_DATA);
@@ -702,7 +706,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 			Vector<uint8_t> buff;
 			buff.resize(len);
 
-			err = encode_variant(value, buff.ptrw(), len);
+			err = encode_variant(value, buff.ptrw(), len, true);
 			if (err != OK)
 				memdelete(file);
 			ERR_FAIL_COND_V(err != OK, ERR_INVALID_DATA);
@@ -724,7 +728,7 @@ Error ProjectSettings::_save_settings_text(const String &p_file, const Map<Strin
 
 	if (err) {
 		ERR_EXPLAIN("Couldn't save project.godot - " + p_file);
-		ERR_FAIL_COND_V(err, err)
+		ERR_FAIL_COND_V(err, err);
 	}
 
 	file->store_line("; Engine configuration file.");
@@ -1004,6 +1008,17 @@ ProjectSettings::ProjectSettings() {
 	GLOBAL_DEF("application/config/use_custom_user_dir", false);
 	GLOBAL_DEF("application/config/custom_user_dir_name", "");
 	GLOBAL_DEF("application/config/project_settings_override", "");
+	GLOBAL_DEF("audio/default_bus_layout", "res://default_bus_layout.tres");
+	custom_prop_info["audio/default_bus_layout"] = PropertyInfo(Variant::STRING, "audio/default_bus_layout", PROPERTY_HINT_FILE, "*.tres");
+
+	PoolStringArray extensions = PoolStringArray();
+	extensions.push_back("gd");
+	if (Engine::get_singleton()->has_singleton("GodotSharp"))
+		extensions.push_back("cs");
+	extensions.push_back("shader");
+
+	GLOBAL_DEF("editor/search_in_file_extensions", extensions);
+	custom_prop_info["editor/search_in_file_extensions"] = PropertyInfo(Variant::POOL_STRING_ARRAY, "editor/search_in_file_extensions");
 
 	action = Dictionary();
 	action["deadzone"] = Variant(0.5f);
@@ -1184,6 +1199,9 @@ ProjectSettings::ProjectSettings() {
 
 	Compression::gzip_level = GLOBAL_DEF("compression/formats/gzip/compression_level", Z_DEFAULT_COMPRESSION);
 	custom_prop_info["compression/formats/gzip/compression_level"] = PropertyInfo(Variant::INT, "compression/formats/gzip/compression_level", PROPERTY_HINT_RANGE, "-1,9,1");
+
+	// Would ideally be defined in an Android-specific file, but then it doesn't appear in the docs
+	GLOBAL_DEF("android/modules", "");
 
 	using_datapack = false;
 }

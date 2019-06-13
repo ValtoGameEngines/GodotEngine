@@ -103,6 +103,8 @@ public:
 		GLuint sky_verts;
 
 		GLuint immediate_buffer;
+		Color default_ambient;
+		Color default_bg;
 
 		// ResolveShaderGLES3 resolve_shader;
 		// ScreenSpaceReflectionShaderGLES3 ssr_shader;
@@ -196,13 +198,14 @@ public:
 		int directional_light_count;
 		int reflection_probe_count;
 
-		bool cull_front;
-		bool cull_disabled;
 		bool used_sss;
 		bool using_contact_shadows;
 
 		VS::ViewportDebugDraw debug_draw;
 		*/
+
+		bool cull_front;
+		bool cull_disabled;
 
 		bool used_screen_texture;
 		bool shadow_is_dual_parabolloid;
@@ -255,6 +258,7 @@ public:
 
 		GLuint fbo;
 		GLuint depth;
+		GLuint color;
 
 		Map<RID, uint32_t> shadow_owners;
 	};
@@ -278,6 +282,7 @@ public:
 	struct DirectionalShadow {
 		GLuint fbo;
 		GLuint depth;
+		GLuint color;
 
 		int light_count;
 		int size;
@@ -310,10 +315,9 @@ public:
 		int reflection_index;
 
 		GLuint fbo[6];
-		GLuint cubemap;
+		GLuint color[6];
 		GLuint depth;
-
-		GLuint fbo_blur;
+		GLuint cubemap;
 
 		int current_resolution;
 		mutable bool dirty;
@@ -473,7 +477,7 @@ public:
 	virtual void light_instance_set_transform(RID p_light_instance, const Transform &p_transform);
 	virtual void light_instance_set_shadow_transform(RID p_light_instance, const CameraMatrix &p_projection, const Transform &p_transform, float p_far, float p_split, int p_pass, float p_bias_scale = 1.0);
 	virtual void light_instance_mark_visible(RID p_light_instance);
-	virtual bool light_instances_can_render_shadow_cube() const { return storage->config.support_write_depth; }
+	virtual bool light_instances_can_render_shadow_cube() const { return storage->config.support_shadow_cubemaps; }
 
 	LightInstance **render_light_instances;
 	int render_directional_lights;
@@ -514,6 +518,7 @@ public:
 
 			bool use_accum; //is this an add pass for multipass
 			bool *use_accum_ptr;
+			bool front_facing;
 
 			union {
 				//TODO: should be endian swapped on big endian
@@ -596,6 +601,27 @@ public:
 			}
 		}
 
+		struct SortByReverseDepthAndPriority {
+
+			_FORCE_INLINE_ bool operator()(const Element *A, const Element *B) const {
+				if (A->priority == B->priority) {
+					return A->instance->depth > B->instance->depth;
+				} else {
+					return A->priority < B->priority;
+				}
+			}
+		};
+
+		void sort_by_reverse_depth_and_priority(bool p_alpha) { //used for alpha
+
+			SortArray<Element *, SortByReverseDepthAndPriority> sorter;
+			if (p_alpha) {
+				sorter.sort(&elements[max_elements - alpha_element_count], alpha_element_count);
+			} else {
+				sorter.sort(elements, element_count);
+			}
+		}
+
 		// element adding and stuff
 
 		_FORCE_INLINE_ Element *add_element() {
@@ -644,6 +670,7 @@ public:
 	void _add_geometry(RasterizerStorageGLES2::Geometry *p_geometry, InstanceBase *p_instance, RasterizerStorageGLES2::GeometryOwner *p_owner, int p_material, bool p_depth_pass, bool p_shadow_pass);
 	void _add_geometry_with_material(RasterizerStorageGLES2::Geometry *p_geometry, InstanceBase *p_instance, RasterizerStorageGLES2::GeometryOwner *p_owner, RasterizerStorageGLES2::Material *p_material, bool p_depth_pass, bool p_shadow_pass);
 
+	void _copy_texture_to_front_buffer(GLuint texture);
 	void _fill_render_list(InstanceBase **p_cull_result, int p_cull_count, bool p_depth_pass, bool p_shadow_pass);
 	void _render_render_list(RenderList::Element **p_elements, int p_element_count,
 			const Transform &p_view_transform,
@@ -659,7 +686,8 @@ public:
 
 	void _draw_sky(RasterizerStorageGLES2::Sky *p_sky, const CameraMatrix &p_projection, const Transform &p_transform, bool p_vflip, float p_custom_fov, float p_energy, const Basis &p_sky_orientation);
 
-	_FORCE_INLINE_ bool _setup_material(RasterizerStorageGLES2::Material *p_material, bool p_reverse_cull, bool p_alpha_pass, Size2i p_skeleton_tex_size = Size2i(0, 0));
+	_FORCE_INLINE_ void _set_cull(bool p_front, bool p_disabled, bool p_reverse_cull);
+	_FORCE_INLINE_ bool _setup_material(RasterizerStorageGLES2::Material *p_material, bool p_alpha_pass, Size2i p_skeleton_tex_size = Size2i(0, 0));
 	_FORCE_INLINE_ void _setup_geometry(RenderList::Element *p_element, RasterizerStorageGLES2::Skeleton *p_skeleton);
 	_FORCE_INLINE_ void _setup_light_type(LightInstance *p_light, ShadowAtlas *shadow_atlas);
 	_FORCE_INLINE_ void _setup_light(LightInstance *p_light, ShadowAtlas *shadow_atlas, const Transform &p_view_transform);

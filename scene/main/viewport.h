@@ -182,6 +182,7 @@ private:
 
 	Size2 size;
 	Rect2 to_screen_rect;
+	bool render_direct_to_screen;
 
 	RID contact_2d_debug;
 	RID contact_3d_debug_multimesh;
@@ -221,12 +222,11 @@ private:
 
 	} physics_last_mouse_state;
 
-	void _collision_object_input_event(CollisionObject *p_object, Camera *p_camera, const Ref<InputEvent> &p_input_event, const Vector3 &p_pos, const Vector3 &p_normal, int p_shape, bool p_discard_empty_motion);
+	void _collision_object_input_event(CollisionObject *p_object, Camera *p_camera, const Ref<InputEvent> &p_input_event, const Vector3 &p_pos, const Vector3 &p_normal, int p_shape);
 
 	bool handle_input_locally;
 	bool local_input_handled;
 
-	void _test_new_mouseover(ObjectID new_collider);
 	Map<ObjectID, uint64_t> physics_2d_mouseover;
 
 	Ref<World2D> world_2d;
@@ -384,12 +384,14 @@ private:
 	void _canvas_layer_remove(CanvasLayer *p_canvas_layer);
 
 	void _drop_mouse_focus();
+	void _drop_physics_mouseover();
 
 	void _update_canvas_items(Node *p_node);
 
 protected:
 	void _notification(int p_what);
 	static void _bind_methods();
+	virtual void _validate_property(PropertyInfo &property) const;
 
 public:
 	Listener *get_listener() const;
@@ -479,6 +481,9 @@ public:
 
 	void set_attach_to_screen_rect(const Rect2 &p_rect);
 	Rect2 get_attach_to_screen_rect() const;
+
+	void set_use_render_direct_to_screen(bool p_render_direct_to_screen);
+	bool is_using_render_direct_to_screen() const;
 
 	Vector2 get_mouse_position() const;
 	void warp_mouse(const Vector2 &p_pos);

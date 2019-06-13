@@ -73,8 +73,8 @@ void EditorSubScene::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_VISIBILITY_CHANGED) {
 
-		if (!is_visible_in_tree()) {
-		}
+		if (is_visible() && scene == NULL)
+			_path_browse();
 	}
 }
 
@@ -187,8 +187,8 @@ void EditorSubScene::move(Node *p_new_parent, Node *p_new_owner) {
 		}
 
 		p_new_parent->add_child(selnode);
-		for (List<Node *>::Element *E = to_reown.front(); E; E = E->next()) {
-			E->get()->set_owner(p_new_owner);
+		for (List<Node *>::Element *F = to_reown.front(); F; F = F->next()) {
+			F->get()->set_owner(p_new_owner);
 		}
 	}
 	if (!is_root) {
@@ -232,7 +232,7 @@ EditorSubScene::EditorSubScene() {
 	hb->add_child(path);
 	path->set_h_size_flags(SIZE_EXPAND_FILL);
 	Button *b = memnew(Button);
-	b->set_text(" .. ");
+	b->set_text(TTR("Browse"));
 	hb->add_child(b);
 	b->connect("pressed", this, "_path_browse");
 	vb->add_margin_child(TTR("Scene Path:"), hb);

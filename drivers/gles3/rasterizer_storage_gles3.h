@@ -82,11 +82,11 @@ public:
 		bool etc2_supported;
 		bool pvrtc_supported;
 
-		bool hdr_supported;
-
 		bool srgb_decode_supported;
 
 		bool texture_float_linear_supported;
+		bool framebuffer_float_supported;
+		bool framebuffer_half_float_supported;
 
 		bool use_rgba_2d_shadows;
 
@@ -103,7 +103,7 @@ public:
 
 		bool keep_original_textures;
 
-		bool no_depth_prepass;
+		bool use_depth_prepass;
 		bool force_vertex_shading;
 	} config;
 
@@ -297,6 +297,7 @@ public:
 				target(GL_TEXTURE_2D),
 				data_size(0),
 				compressed(false),
+				srgb(false),
 				total_data_size(0),
 				ignore_mipmaps(false),
 				mipmaps(0),
@@ -890,12 +891,15 @@ public:
 		SelfList<Skeleton> update_list;
 		Set<RasterizerScene::InstanceBase *> instances; //instances using skeleton
 		Transform2D base_transform_2d;
+		bool use_world_transform;
+		Transform world_transform;
 
 		Skeleton() :
 				use_2d(false),
 				size(0),
 				texture(0),
-				update_list(this) {
+				update_list(this),
+				use_world_transform(false) {
 		}
 	};
 
@@ -913,6 +917,7 @@ public:
 	virtual void skeleton_bone_set_transform_2d(RID p_skeleton, int p_bone, const Transform2D &p_transform);
 	virtual Transform2D skeleton_bone_get_transform_2d(RID p_skeleton, int p_bone) const;
 	virtual void skeleton_set_base_transform_2d(RID p_skeleton, const Transform2D &p_base_transform);
+	virtual void skeleton_set_world_transform(RID p_skeleton, bool p_enable, const Transform &p_world_transform);
 
 	/* Light API */
 
@@ -926,6 +931,7 @@ public:
 		bool shadow;
 		bool negative;
 		bool reverse_cull;
+		bool use_gi;
 		uint32_t cull_mask;
 		VS::LightOmniShadowMode omni_shadow_mode;
 		VS::LightOmniShadowDetail omni_shadow_detail;
@@ -947,6 +953,7 @@ public:
 	virtual void light_set_negative(RID p_light, bool p_enable);
 	virtual void light_set_cull_mask(RID p_light, uint32_t p_mask);
 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled);
+	virtual void light_set_use_gi(RID p_light, bool p_enabled);
 
 	virtual void light_omni_set_shadow_mode(RID p_light, VS::LightOmniShadowMode p_mode);
 	virtual void light_omni_set_shadow_detail(RID p_light, VS::LightOmniShadowDetail p_detail);
@@ -966,6 +973,7 @@ public:
 	virtual VS::LightType light_get_type(RID p_light) const;
 	virtual float light_get_param(RID p_light, VS::LightParam p_param);
 	virtual Color light_get_color(RID p_light);
+	virtual bool light_get_use_gi(RID p_light);
 
 	virtual AABB light_get_aabb(RID p_light) const;
 	virtual uint64_t light_get_version(RID p_light) const;
@@ -1341,6 +1349,15 @@ public:
 					fbo(0) {}
 		} exposure;
 
+		// External FBO to render our final result to (mostly used for ARVR)
+		struct External {
+			GLuint fbo;
+			RID texture;
+
+			External() :
+					fbo(0) {}
+		} external;
+
 		uint64_t last_exposure_tick;
 
 		int width, height;
@@ -1362,6 +1379,7 @@ public:
 				msaa(VS::VIEWPORT_MSAA_DISABLED) {
 			exposure.fbo = 0;
 			buffers.fbo = 0;
+			external.fbo = 0;
 			for (int i = 0; i < RENDER_TARGET_FLAG_MAX; i++) {
 				flags[i] = false;
 			}
@@ -1377,8 +1395,10 @@ public:
 	void _render_target_allocate(RenderTarget *rt);
 
 	virtual RID render_target_create();
+	virtual void render_target_set_position(RID p_render_target, int p_x, int p_y);
 	virtual void render_target_set_size(RID p_render_target, int p_width, int p_height);
 	virtual RID render_target_get_texture(RID p_render_target) const;
+	virtual void render_target_set_external_texture(RID p_render_target, unsigned int p_texture_id);
 
 	virtual void render_target_set_flag(RID p_render_target, RenderTargetFlags p_flag, bool p_value);
 	virtual bool render_target_was_used(RID p_render_target);

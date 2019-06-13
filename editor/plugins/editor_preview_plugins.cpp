@@ -36,7 +36,7 @@
 #include "editor/editor_node.h"
 #include "editor/editor_scale.h"
 #include "editor/editor_settings.h"
-#include "scene/resources/bit_mask.h"
+#include "scene/resources/bit_map.h"
 #include "scene/resources/dynamic_font.h"
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
@@ -78,7 +78,7 @@ bool EditorTexturePreviewPlugin::handles(const String &p_type) const {
 	return ClassDB::is_parent_class(p_type, "Texture");
 }
 
-bool EditorTexturePreviewPlugin::should_generate_small_preview() const {
+bool EditorTexturePreviewPlugin::generate_small_preview_automatically() const {
 	return true;
 }
 
@@ -92,7 +92,12 @@ Ref<Texture> EditorTexturePreviewPlugin::generate(const RES &p_from, const Size2
 		if (!tex.is_valid()) {
 			return Ref<Texture>();
 		}
+
 		Ref<Image> atlas = tex->get_data();
+		if (!atlas.is_valid()) {
+			return Ref<Texture>();
+		}
+
 		img = atlas->get_rect(atex->get_region());
 	} else if (ltex.is_valid()) {
 		img = ltex->to_image();
@@ -181,7 +186,7 @@ Ref<Texture> EditorImagePreviewPlugin::generate(const RES &p_from, const Size2 p
 EditorImagePreviewPlugin::EditorImagePreviewPlugin() {
 }
 
-bool EditorImagePreviewPlugin::should_generate_small_preview() const {
+bool EditorImagePreviewPlugin::generate_small_preview_automatically() const {
 	return true;
 }
 ////////////////////////////////////////////////////////////////////////////
@@ -245,7 +250,7 @@ Ref<Texture> EditorBitmapPreviewPlugin::generate(const RES &p_from, const Size2 
 	return ptex;
 }
 
-bool EditorBitmapPreviewPlugin::should_generate_small_preview() const {
+bool EditorBitmapPreviewPlugin::generate_small_preview_automatically() const {
 	return true;
 }
 
@@ -312,7 +317,7 @@ bool EditorMaterialPreviewPlugin::handles(const String &p_type) const {
 	return ClassDB::is_parent_class(p_type, "Material"); //any material
 }
 
-bool EditorMaterialPreviewPlugin::should_generate_small_preview() const {
+bool EditorMaterialPreviewPlugin::generate_small_preview_automatically() const {
 	return true;
 }
 
@@ -638,7 +643,7 @@ Ref<Texture> EditorAudioStreamPreviewPlugin::generate(const RES &p_from, const S
 		float max = -1000;
 		float min = 1000;
 		int from = uint64_t(i) * frame_length / w;
-		int to = uint64_t(i + 1) * frame_length / w;
+		int to = (uint64_t(i) + 1) * frame_length / w;
 		to = MIN(to, frame_length);
 		from = MIN(from, frame_length - 1);
 		if (to == from) {
@@ -845,14 +850,15 @@ Ref<Texture> EditorFontPreviewPlugin::generate_from_path(const String &p_path, c
 
 	font->draw(canvas_item, pos, sampled_text);
 
-	VS::get_singleton()->viewport_set_update_mode(viewport, VS::VIEWPORT_UPDATE_ONCE); //once used for capture
-
 	preview_done = false;
+	VS::get_singleton()->viewport_set_update_mode(viewport, VS::VIEWPORT_UPDATE_ONCE); //once used for capture
 	VS::get_singleton()->request_frame_drawn_callback(const_cast<EditorFontPreviewPlugin *>(this), "_preview_done", Variant());
 
 	while (!preview_done) {
 		OS::get_singleton()->delay_usec(10);
 	}
+
+	VS::get_singleton()->canvas_item_clear(canvas_item);
 
 	Ref<Image> img = VS::get_singleton()->texture_get_data(viewport_texture);
 	ERR_FAIL_COND_V(img.is_null(), Ref<ImageTexture>());
@@ -878,7 +884,11 @@ Ref<Texture> EditorFontPreviewPlugin::generate_from_path(const String &p_path, c
 
 Ref<Texture> EditorFontPreviewPlugin::generate(const RES &p_from, const Size2 p_size) const {
 
-	return generate_from_path(p_from->get_path(), p_size);
+	String path = p_from->get_path();
+	if (!FileAccess::exists(path)) {
+		return Ref<Texture>();
+	}
+	return generate_from_path(path, p_size);
 }
 
 EditorFontPreviewPlugin::EditorFontPreviewPlugin() {

@@ -123,6 +123,7 @@ private:
 	void _load_defaults(Ref<ConfigFile> p_extra_config = NULL);
 	void _load_default_text_editor_theme();
 	bool _save_text_editor_theme(String p_file);
+	bool _is_default_text_editor_theme(String p_file);
 
 protected:
 	static void _bind_methods();
@@ -169,6 +170,7 @@ public:
 	String get_text_editor_themes_dir() const;
 	String get_script_templates_dir() const;
 	String get_cache_dir() const;
+	String get_feature_profiles_dir() const;
 
 	void set_project_metadata(const String &p_section, const String &p_key, Variant p_data);
 	Variant get_project_metadata(const String &p_section, const String &p_key, Variant p_default) const;
@@ -186,6 +188,7 @@ public:
 	bool import_text_editor_theme(String p_file);
 	bool save_text_editor_theme();
 	bool save_text_editor_theme_as(String p_file);
+	bool is_default_text_editor_theme();
 
 	Vector<String> get_script_templates(const String &p_extension);
 	String get_editor_layouts_config() const;

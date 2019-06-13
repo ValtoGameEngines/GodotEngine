@@ -246,7 +246,7 @@ void FileAccessUnix::store_8(uint8_t p_dest) {
 
 void FileAccessUnix::store_buffer(const uint8_t *p_src, int p_length) {
 	ERR_FAIL_COND(!f);
-	ERR_FAIL_COND(fwrite(p_src, 1, p_length, f) != p_length);
+	ERR_FAIL_COND((int)fwrite(p_src, 1, p_length, f) != p_length);
 }
 
 bool FileAccessUnix::file_exists(const String &p_path) {
@@ -293,8 +293,25 @@ uint64_t FileAccessUnix::_get_modified_time(const String &p_file) {
 	};
 }
 
-Error FileAccessUnix::_chmod(const String &p_path, int p_mod) {
-	int err = chmod(p_path.utf8().get_data(), p_mod);
+uint32_t FileAccessUnix::_get_unix_permissions(const String &p_file) {
+
+	String file = fix_path(p_file);
+	struct stat flags;
+	int err = stat(file.utf8().get_data(), &flags);
+
+	if (!err) {
+		return flags.st_mode & 0x7FF; //only permissions
+	} else {
+		ERR_EXPLAIN("Failed to get unix permissions for: " + p_file);
+		ERR_FAIL_V(0);
+	};
+}
+
+Error FileAccessUnix::_set_unix_permissions(const String &p_file, uint32_t p_permissions) {
+
+	String file = fix_path(p_file);
+
+	int err = chmod(file.utf8().get_data(), p_permissions);
 	if (!err) {
 		return OK;
 	}

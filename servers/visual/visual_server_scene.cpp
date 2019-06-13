@@ -30,7 +30,7 @@
 
 #include "visual_server_scene.h"
 #include "core/os/os.h"
-#include "visual_server_global.h"
+#include "visual_server_globals.h"
 #include "visual_server_raster.h"
 #include <new>
 /* CAMERA API */
@@ -57,6 +57,16 @@ void VisualServerScene::camera_set_orthogonal(RID p_camera, float p_size, float 
 	ERR_FAIL_COND(!camera);
 	camera->type = Camera::ORTHOGONAL;
 	camera->size = p_size;
+	camera->znear = p_z_near;
+	camera->zfar = p_z_far;
+}
+
+void VisualServerScene::camera_set_frustum(RID p_camera, float p_size, Vector2 p_offset, float p_z_near, float p_z_far) {
+	Camera *camera = camera_owner.get(p_camera);
+	ERR_FAIL_COND(!camera);
+	camera->type = Camera::FRUSTUM;
+	camera->size = p_size;
+	camera->offset = p_offset;
 	camera->znear = p_z_near;
 	camera->zfar = p_z_far;
 }
@@ -399,7 +409,8 @@ void VisualServerScene::instance_set_base(RID p_instance, RID p_base) {
 				VSG::scene_render->free(gi_probe->probe_instance);
 
 			} break;
-			default: {}
+			default: {
+			}
 		}
 
 		if (instance->base_data) {
@@ -445,6 +456,9 @@ void VisualServerScene::instance_set_base(RID p_instance, RID p_base) {
 
 				InstanceGeometryData *geom = memnew(InstanceGeometryData);
 				instance->base_data = geom;
+				if (instance->base_type == VS::INSTANCE_MESH) {
+					instance->blend_values.resize(VSG::storage->mesh_get_blend_shape_count(p_base));
+				}
 			} break;
 			case VS::INSTANCE_REFLECTION_PROBE: {
 
@@ -473,7 +487,8 @@ void VisualServerScene::instance_set_base(RID p_instance, RID p_base) {
 				gi_probe->probe_instance = VSG::scene_render->gi_probe_instance_create();
 
 			} break;
-			default: {}
+			default: {
+			}
 		}
 
 		VSG::storage->instance_add_dependency(p_base, instance);
@@ -521,7 +536,8 @@ void VisualServerScene::instance_set_scenario(RID p_instance, RID p_scenario) {
 					gi_probe_update_list.remove(&gi_probe->update_element);
 				}
 			} break;
-			default: {}
+			default: {
+			}
 		}
 
 		instance->scenario = NULL;
@@ -553,7 +569,8 @@ void VisualServerScene::instance_set_scenario(RID p_instance, RID p_scenario) {
 					gi_probe_update_list.add(&gi_probe->update_element);
 				}
 			} break;
-			default: {}
+			default: {
+			}
 		}
 
 		_instance_queue_update(instance, true, true);
@@ -590,12 +607,12 @@ void VisualServerScene::instance_set_transform(RID p_instance, const Transform &
 	instance->transform = p_transform;
 	_instance_queue_update(instance, true);
 }
-void VisualServerScene::instance_attach_object_instance_id(RID p_instance, ObjectID p_ID) {
+void VisualServerScene::instance_attach_object_instance_id(RID p_instance, ObjectID p_id) {
 
 	Instance *instance = instance_owner.get(p_instance);
 	ERR_FAIL_COND(!instance);
 
-	instance->object_ID = p_ID;
+	instance->object_id = p_id;
 }
 void VisualServerScene::instance_set_blend_shape_weight(RID p_instance, int p_shape, float p_weight) {
 
@@ -668,7 +685,8 @@ void VisualServerScene::instance_set_visible(RID p_instance, bool p_visible) {
 			}
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 inline bool is_geometry_instance(VisualServer::InstanceType p_type) {
@@ -773,10 +791,10 @@ Vector<ObjectID> VisualServerScene::instances_cull_aabb(const AABB &p_aabb, RID 
 
 		Instance *instance = cull[i];
 		ERR_CONTINUE(!instance);
-		if (instance->object_ID == 0)
+		if (instance->object_id == 0)
 			continue;
 
-		instances.push_back(instance->object_ID);
+		instances.push_back(instance->object_id);
 	}
 
 	return instances;
@@ -795,10 +813,10 @@ Vector<ObjectID> VisualServerScene::instances_cull_ray(const Vector3 &p_from, co
 	for (int i = 0; i < culled; i++) {
 		Instance *instance = cull[i];
 		ERR_CONTINUE(!instance);
-		if (instance->object_ID == 0)
+		if (instance->object_id == 0)
 			continue;
 
-		instances.push_back(instance->object_ID);
+		instances.push_back(instance->object_id);
 	}
 
 	return instances;
@@ -819,10 +837,10 @@ Vector<ObjectID> VisualServerScene::instances_cull_convex(const Vector<Plane> &p
 
 		Instance *instance = cull[i];
 		ERR_CONTINUE(!instance);
-		if (instance->object_ID == 0)
+		if (instance->object_id == 0)
 			continue;
 
-		instances.push_back(instance->object_ID);
+		instances.push_back(instance->object_id);
 	}
 
 	return instances;
@@ -845,7 +863,8 @@ void VisualServerScene::instance_geometry_set_flag(RID p_instance, VS::InstanceF
 			instance->redraw_if_visible = p_enabled;
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 void VisualServerScene::instance_geometry_set_cast_shadows_setting(RID p_instance, VS::ShadowCastingSetting p_shadow_casting_setting) {
@@ -1037,7 +1056,8 @@ void VisualServerScene::_update_instance_aabb(Instance *p_instance) {
 			new_aabb = VSG::storage->lightmap_capture_get_bounds(p_instance->base);
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	// <Zylann> This is why I didn't re-use Instance::aabb to implement custom AABBs
@@ -1720,6 +1740,17 @@ void VisualServerScene::render_camera(RID p_camera, RID p_scenario, Size2 p_view
 			ortho = false;
 
 		} break;
+		case Camera::FRUSTUM: {
+
+			camera_matrix.set_frustum(
+					camera->size,
+					p_viewport_size.width / (float)p_viewport_size.height,
+					camera->offset,
+					camera->znear,
+					camera->zfar,
+					camera->vaspect);
+			ortho = false;
+		} break;
 	}
 
 	_prepare_scene(camera->transform, camera_matrix, ortho, camera->env, camera->visible_layers, p_scenario, p_shadow_atlas, RID());
@@ -1861,7 +1892,7 @@ void VisualServerScene::_prepare_scene(const Transform p_cam_transform, const Ca
 			//failure
 		} else if (ins->base_type == VS::INSTANCE_LIGHT && ins->visible) {
 
-			if (ins->visible && light_cull_count < MAX_LIGHTS_CULLED) {
+			if (light_cull_count < MAX_LIGHTS_CULLED) {
 
 				InstanceLightData *light = static_cast<InstanceLightData *>(ins->base_data);
 
@@ -1878,7 +1909,7 @@ void VisualServerScene::_prepare_scene(const Transform p_cam_transform, const Ca
 			}
 		} else if (ins->base_type == VS::INSTANCE_REFLECTION_PROBE && ins->visible) {
 
-			if (ins->visible && reflection_probe_cull_count < MAX_REFLECTION_PROBES_CULLED) {
+			if (reflection_probe_cull_count < MAX_REFLECTION_PROBES_CULLED) {
 
 				InstanceReflectionProbeData *reflection_probe = static_cast<InstanceReflectionProbeData *>(ins->base_data);
 
@@ -2480,7 +2511,7 @@ void VisualServerScene::_setup_gi_probe(Instance *p_instance) {
 							uint32_t a = uint32_t(alpha_block[x][y]) - min_alpha;
 							//convert range to 3 bits
 							a = int((a * 7.0 / (max_alpha - min_alpha)) + 0.5);
-							a = CLAMP(a, 0, 7); //just to be sure
+							a = MIN(a, 7); //just to be sure
 							a = 7 - a; //because range is inverted in this mode
 							if (a == 0) {
 								//do none, remain
@@ -2623,7 +2654,7 @@ void VisualServerScene::_bake_gi_probe_light(const GIProbeDataHeader *header, co
 
 			for (int i = 0; i < 3; i++) {
 
-				if (ABS(light_axis[i]) < CMP_EPSILON)
+				if (Math::is_zero_approx(light_axis[i]))
 					continue;
 				clip[clip_planes].normal[i] = 1.0;
 
@@ -2758,7 +2789,7 @@ void VisualServerScene::_bake_gi_probe_light(const GIProbeDataHeader *header, co
 
 				for (int c = 0; c < 3; c++) {
 
-					if (ABS(light_axis[c]) < CMP_EPSILON)
+					if (Math::is_zero_approx(light_axis[c]))
 						continue;
 					clip[clip_planes].normal[c] = 1.0;
 
@@ -2916,7 +2947,7 @@ void VisualServerScene::_bake_gi_probe(Instance *p_gi_probe) {
 
 				uint32_t idx = level_cells[j];
 
-				uint32_t r = (uint32_t(local_data[idx].energy[0]) / probe_data->dynamic.bake_dynamic_range) >> 2;
+				uint32_t r2 = (uint32_t(local_data[idx].energy[0]) / probe_data->dynamic.bake_dynamic_range) >> 2;
 				uint32_t g = (uint32_t(local_data[idx].energy[1]) / probe_data->dynamic.bake_dynamic_range) >> 2;
 				uint32_t b = (uint32_t(local_data[idx].energy[2]) / probe_data->dynamic.bake_dynamic_range) >> 2;
 				uint32_t a = (cells[idx].level_alpha >> 8) & 0xFF;
@@ -2924,10 +2955,10 @@ void VisualServerScene::_bake_gi_probe(Instance *p_gi_probe) {
 				uint32_t mm_ofs = sizes[0] * sizes[1] * (local_data[idx].pos[2]) + sizes[0] * (local_data[idx].pos[1]) + (local_data[idx].pos[0]);
 				mm_ofs *= 4; //for RGBA (4 bytes)
 
-				mipmapw[mm_ofs + 0] = uint8_t(CLAMP(r, 0, 255));
-				mipmapw[mm_ofs + 1] = uint8_t(CLAMP(g, 0, 255));
-				mipmapw[mm_ofs + 2] = uint8_t(CLAMP(b, 0, 255));
-				mipmapw[mm_ofs + 3] = uint8_t(CLAMP(a, 0, 255));
+				mipmapw[mm_ofs + 0] = uint8_t(MIN(r2, 255));
+				mipmapw[mm_ofs + 1] = uint8_t(MIN(g, 255));
+				mipmapw[mm_ofs + 2] = uint8_t(MIN(b, 255));
+				mipmapw[mm_ofs + 3] = uint8_t(MIN(a, 255));
 			}
 		}
 	} else if (probe_data->dynamic.compression == RasterizerStorage::GI_PROBE_S3TC) {
@@ -3086,6 +3117,9 @@ bool VisualServerScene::_check_gi_probe(Instance *p_gi_probe) {
 
 	for (List<Instance *>::Element *E = p_gi_probe->scenario->directional_lights.front(); E; E = E->next()) {
 
+		if (!VSG::storage->light_get_use_gi(E->get()->base))
+			continue;
+
 		InstanceGIProbeData::LightCache lc;
 		lc.type = VSG::storage->light_get_type(E->get()->base);
 		lc.color = VSG::storage->light_get_color(E->get()->base);
@@ -3105,6 +3139,9 @@ bool VisualServerScene::_check_gi_probe(Instance *p_gi_probe) {
 	}
 
 	for (Set<Instance *>::Element *E = probe_data->lights.front(); E; E = E->next()) {
+
+		if (!VSG::storage->light_get_use_gi(E->get()->base))
+			continue;
 
 		InstanceGIProbeData::LightCache lc;
 		lc.type = VSG::storage->light_get_type(E->get()->base);

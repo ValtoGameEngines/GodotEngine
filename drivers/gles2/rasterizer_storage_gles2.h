@@ -31,7 +31,7 @@
 #ifndef RASTERIZERSTORAGEGLES2_H
 #define RASTERIZERSTORAGEGLES2_H
 
-#include "core/dvector.h"
+#include "core/pool_vector.h"
 #include "core/self_list.h"
 #include "servers/visual/rasterizer.h"
 #include "servers/visual/shader_language.h"
@@ -72,16 +72,31 @@ public:
 		bool float_texture_supported;
 		bool s3tc_supported;
 		bool etc1_supported;
+		bool pvrtc_supported;
+		bool rgtc_supported;
+		bool bptc_supported;
 
 		bool keep_original_textures;
 
 		bool force_vertex_shading;
 
 		bool use_rgba_2d_shadows;
+		bool use_rgba_3d_shadows;
 
 		bool support_32_bits_indices;
 		bool support_write_depth;
 		bool support_half_float_vertices;
+		bool support_npot_repeat_mipmap;
+		bool support_depth_texture;
+		bool support_depth_cubemaps;
+
+		bool support_shadow_cubemaps;
+
+		bool multisample_supported;
+
+		GLuint depth_internalformat;
+		GLuint depth_type;
+
 	} config;
 
 	struct Resources {
@@ -90,6 +105,9 @@ public:
 		GLuint black_tex;
 		GLuint normal_tex;
 		GLuint aniso_tex;
+
+		GLuint mipmap_blur_fbo;
+		GLuint mipmap_blur_color;
 
 		GLuint radical_inverse_vdc_cache_tex;
 		bool use_rgba_2d_shadows;
@@ -240,6 +258,8 @@ public:
 
 		int mipmaps;
 
+		bool resize_to_po2;
+
 		bool active;
 		GLenum tex_id;
 
@@ -275,6 +295,7 @@ public:
 				ignore_mipmaps(false),
 				compressed(false),
 				mipmaps(0),
+				resize_to_po2(false),
 				active(false),
 				tex_id(0),
 				stored_cube_sides(0),
@@ -313,7 +334,7 @@ public:
 
 	mutable RID_Owner<Texture> texture_owner;
 
-	Ref<Image> _get_gl_image_and_format(const Ref<Image> &p_image, Image::Format p_format, uint32_t p_flags, Image::Format &r_real_format, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_gl_type, bool &r_compressed) const;
+	Ref<Image> _get_gl_image_and_format(const Ref<Image> &p_image, Image::Format p_format, uint32_t p_flags, Image::Format &r_real_format, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_gl_type, bool &r_compressed, bool p_will_need_resize) const;
 
 	virtual RID texture_create();
 	virtual void texture_allocate(RID p_texture, int p_width, int p_height, int p_depth_3d, Image::Format p_format, VS::TextureType p_type, uint32_t p_flags = VS::TEXTURE_FLAGS_DEFAULT);
@@ -619,6 +640,7 @@ public:
 
 		PoolVector<uint8_t> data;
 		PoolVector<uint8_t> index_data;
+		Vector<PoolVector<uint8_t> > blend_shape_data;
 
 		int total_data_size;
 
@@ -845,12 +867,16 @@ public:
 		Set<RasterizerScene::InstanceBase *> instances;
 
 		Transform2D base_transform_2d;
+		Transform world_transform;
+		Transform world_transform_inverse;
+		bool use_world_transform;
 
 		Skeleton() :
 				use_2d(false),
 				size(0),
 				tex_id(0),
-				update_list(this) {
+				update_list(this),
+				use_world_transform(false) {
 		}
 	};
 
@@ -868,6 +894,7 @@ public:
 	virtual void skeleton_bone_set_transform_2d(RID p_skeleton, int p_bone, const Transform2D &p_transform);
 	virtual Transform2D skeleton_bone_get_transform_2d(RID p_skeleton, int p_bone) const;
 	virtual void skeleton_set_base_transform_2d(RID p_skeleton, const Transform2D &p_base_transform);
+	virtual void skeleton_set_world_transform(RID p_skeleton, bool p_enable, const Transform &p_world_transform);
 
 	void _update_skeleton_transform_buffer(const PoolVector<float> &p_data, size_t p_size);
 
@@ -885,6 +912,7 @@ public:
 		bool shadow;
 		bool negative;
 		bool reverse_cull;
+		bool use_gi;
 
 		uint32_t cull_mask;
 
@@ -911,6 +939,7 @@ public:
 	virtual void light_set_negative(RID p_light, bool p_enable);
 	virtual void light_set_cull_mask(RID p_light, uint32_t p_mask);
 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled);
+	virtual void light_set_use_gi(RID p_light, bool p_enabled);
 
 	virtual void light_omni_set_shadow_mode(RID p_light, VS::LightOmniShadowMode p_mode);
 	virtual void light_omni_set_shadow_detail(RID p_light, VS::LightOmniShadowDetail p_detail);
@@ -930,6 +959,7 @@ public:
 	virtual VS::LightType light_get_type(RID p_light) const;
 	virtual float light_get_param(RID p_light, VS::LightParam p_param);
 	virtual Color light_get_color(RID p_light);
+	virtual bool light_get_use_gi(RID p_light);
 
 	virtual AABB light_get_aabb(RID p_light) const;
 	virtual uint64_t light_get_version(RID p_light) const;
@@ -1104,9 +1134,13 @@ public:
 
 	struct RenderTarget : public RID_Data {
 		GLuint fbo;
-
 		GLuint color;
 		GLuint depth;
+
+		GLuint multisample_fbo;
+		GLuint multisample_color;
+		GLuint multisample_depth;
+		bool multisample_active;
 
 		// TODO post processing effects?
 
@@ -1131,7 +1165,17 @@ public:
 
 		Effect copy_screen_effect;
 
-		int width, height;
+		struct External {
+			GLuint fbo;
+			GLuint color;
+			RID texture;
+
+			External() :
+					fbo(0) {
+			}
+		} external;
+
+		int x, y, width, height;
 
 		bool flags[RENDER_TARGET_FLAG_MAX];
 
@@ -1144,6 +1188,12 @@ public:
 				fbo(0),
 				color(0),
 				depth(0),
+				multisample_fbo(0),
+				multisample_color(0),
+				multisample_depth(0),
+				multisample_active(false),
+				x(0),
+				y(0),
 				width(0),
 				height(0),
 				used_in_frame(false),
@@ -1151,6 +1201,7 @@ public:
 			for (int i = 0; i < RENDER_TARGET_FLAG_MAX; ++i) {
 				flags[i] = false;
 			}
+			external.fbo = 0;
 		}
 	};
 
@@ -1160,8 +1211,10 @@ public:
 	void _render_target_allocate(RenderTarget *rt);
 
 	virtual RID render_target_create();
+	virtual void render_target_set_position(RID p_render_target, int p_x, int p_y);
 	virtual void render_target_set_size(RID p_render_target, int p_width, int p_height);
 	virtual RID render_target_get_texture(RID p_render_target) const;
+	virtual void render_target_set_external_texture(RID p_render_target, unsigned int p_texture_id);
 
 	virtual void render_target_set_flag(RID p_render_target, RenderTargetFlags p_flag, bool p_value);
 	virtual bool render_target_was_used(RID p_render_target);

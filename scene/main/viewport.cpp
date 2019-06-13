@@ -37,8 +37,8 @@
 #include "scene/3d/camera.h"
 #include "scene/3d/collision_object.h"
 #include "scene/3d/listener.h"
-#include "scene/3d/scenario_fx.h"
 #include "scene/3d/spatial.h"
+#include "scene/3d/world_environment.h"
 #include "scene/gui/control.h"
 #include "scene/gui/label.h"
 #include "scene/gui/menu_button.h"
@@ -232,16 +232,16 @@ void Viewport::update_worlds() {
 	find_world()->_update(get_tree()->get_frame());
 }
 
-void Viewport::_collision_object_input_event(CollisionObject *p_object, Camera *p_camera, const Ref<InputEvent> &p_input_event, const Vector3 &p_pos, const Vector3 &p_normal, int p_shape, bool p_discard_empty_motion) {
+void Viewport::_collision_object_input_event(CollisionObject *p_object, Camera *p_camera, const Ref<InputEvent> &p_input_event, const Vector3 &p_pos, const Vector3 &p_normal, int p_shape) {
 
 	Transform object_transform = p_object->get_global_transform();
 	Transform camera_transform = p_camera->get_global_transform();
 	ObjectID id = p_object->get_instance_id();
 
-	if (p_discard_empty_motion) {
-		//avoid sending the event unnecesarily if nothing really changed in the context
+	//avoid sending the fake event unnecessarily if nothing really changed in the context
+	if (object_transform == physics_last_object_transform && camera_transform == physics_last_camera_transform && physics_last_id == id) {
 		Ref<InputEventMouseMotion> mm = p_input_event;
-		if (mm.is_valid() && object_transform == physics_last_object_transform && camera_transform == physics_last_camera_transform && physics_last_id == id) {
+		if (mm.is_valid() && mm->get_device() == InputEvent::DEVICE_ID_INTERNAL) {
 			return; //discarded
 		}
 	}
@@ -249,31 +249,6 @@ void Viewport::_collision_object_input_event(CollisionObject *p_object, Camera *
 	physics_last_object_transform = object_transform;
 	physics_last_camera_transform = camera_transform;
 	physics_last_id = id;
-}
-
-void Viewport::_test_new_mouseover(ObjectID new_collider) {
-#ifndef _3D_DISABLED
-	if (new_collider != physics_object_over) {
-
-		if (physics_object_over) {
-
-			CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(physics_object_over));
-			if (co) {
-				co->_mouse_exit();
-			}
-		}
-
-		if (new_collider) {
-
-			CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(new_collider));
-			if (co) {
-				co->_mouse_enter();
-			}
-		}
-
-		physics_object_over = new_collider;
-	}
-#endif
 }
 
 void Viewport::_notification(int p_what) {
@@ -416,28 +391,30 @@ void Viewport::_notification(int p_what) {
 
 			if (physics_object_picking && (to_screen_rect == Rect2() || Input::get_singleton()->get_mouse_mode() != Input::MOUSE_MODE_CAPTURED)) {
 
+#ifndef _3D_DISABLED
 				Vector2 last_pos(1e20, 1e20);
 				CollisionObject *last_object = NULL;
 				ObjectID last_id = 0;
+#endif
 				PhysicsDirectSpaceState::RayResult result;
 				Physics2DDirectSpaceState *ss2d = Physics2DServer::get_singleton()->space_get_direct_state(find_world_2d()->get_space());
 
-				bool discard_empty_motion = false;
-
-				{ // if no motion event exists, create a new one. This is necessary because objects or camera may have moved.
-					// while this extra event is sent, it is checked if both camera and last object and last ID did not move. If nothing changed, the event is discarded to avoid flooding with unnecesary motion events every frame
-					bool has_mouse_motion = false;
+				if (physics_has_last_mousepos) {
+					// if no mouse event exists, create a motion one. This is necessary because objects or camera may have moved.
+					// while this extra event is sent, it is checked if both camera and last object and last ID did not move. If nothing changed, the event is discarded to avoid flooding with unnecessary motion events every frame
+					bool has_mouse_event = false;
 					for (List<Ref<InputEvent> >::Element *E = physics_picking_events.front(); E; E = E->next()) {
-						Ref<InputEventMouseMotion> mm = E->get();
-						if (mm.is_valid()) {
-							has_mouse_motion = true;
+						Ref<InputEventMouse> m = E->get();
+						if (m.is_valid()) {
+							has_mouse_event = true;
 							break;
 						}
 					}
 
-					if (!has_mouse_motion && physics_has_last_mousepos) {
+					if (!has_mouse_event) {
 						Ref<InputEventMouseMotion> mm;
 						mm.instance();
+						mm->set_device(InputEvent::DEVICE_ID_INTERNAL);
 						mm->set_global_position(physics_last_mousepos);
 						mm->set_position(physics_last_mousepos);
 						mm->set_alt(physics_last_mouse_state.alt);
@@ -446,11 +423,8 @@ void Viewport::_notification(int p_what) {
 						mm->set_metakey(physics_last_mouse_state.meta);
 						mm->set_button_mask(physics_last_mouse_state.mouse_mask);
 						physics_picking_events.push_back(mm);
-						discard_empty_motion = true;
 					}
 				}
-
-				bool motion_tested = false;
 
 				while (physics_picking_events.size()) {
 
@@ -458,13 +432,15 @@ void Viewport::_notification(int p_what) {
 					physics_picking_events.pop_front();
 
 					Vector2 pos;
+					bool is_mouse = false;
 
 					Ref<InputEventMouseMotion> mm = ev;
 
 					if (mm.is_valid()) {
 
 						pos = mm->get_position();
-						motion_tested = true;
+						is_mouse = true;
+
 						physics_has_last_mousepos = true;
 						physics_last_mousepos = pos;
 						physics_last_mouse_state.alt = mm->get_alt();
@@ -477,7 +453,12 @@ void Viewport::_notification(int p_what) {
 					Ref<InputEventMouseButton> mb = ev;
 
 					if (mb.is_valid()) {
+
 						pos = mb->get_position();
+						is_mouse = true;
+
+						physics_has_last_mousepos = true;
+						physics_last_mousepos = pos;
 						physics_last_mouse_state.alt = mb->get_alt();
 						physics_last_mouse_state.shift = mb->get_shift();
 						physics_last_mouse_state.control = mb->get_control();
@@ -487,6 +468,11 @@ void Viewport::_notification(int p_what) {
 							physics_last_mouse_state.mouse_mask |= (1 << (mb->get_button_index() - 1));
 						} else {
 							physics_last_mouse_state.mouse_mask &= ~(1 << (mb->get_button_index() - 1));
+
+							// If touch mouse raised, assume we don't know last mouse pos until new events come
+							if (mb->get_device() == InputEvent::DEVICE_ID_TOUCH_MOUSE) {
+								physics_has_last_mousepos = false;
+							}
 						}
 					}
 
@@ -539,40 +525,51 @@ void Viewport::_notification(int p_what) {
 								if (res[i].collider_id && res[i].collider) {
 									CollisionObject2D *co = Object::cast_to<CollisionObject2D>(res[i].collider);
 									if (co) {
+										bool send_event = true;
+										if (is_mouse) {
+											Map<ObjectID, uint64_t>::Element *F = physics_2d_mouseover.find(res[i].collider_id);
 
-										Map<ObjectID, uint64_t>::Element *E = physics_2d_mouseover.find(res[i].collider_id);
-										if (!E) {
-											E = physics_2d_mouseover.insert(res[i].collider_id, frame);
-											co->_mouse_enter();
-										} else {
-											E->get() = frame;
+											if (!F) {
+												F = physics_2d_mouseover.insert(res[i].collider_id, frame);
+												co->_mouse_enter();
+											} else {
+												F->get() = frame;
+												// It was already hovered, so don't send the event if it's faked
+												if (mm.is_valid() && mm->get_device() == InputEvent::DEVICE_ID_INTERNAL) {
+													send_event = false;
+												}
+											}
 										}
 
-										co->_input_event(this, ev, res[i].shape);
+										if (send_event) {
+											co->_input_event(this, ev, res[i].shape);
+										}
 									}
 								}
 							}
 						}
 
-						List<Map<ObjectID, uint64_t>::Element *> to_erase;
+						if (is_mouse) {
+							List<Map<ObjectID, uint64_t>::Element *> to_erase;
 
-						for (Map<ObjectID, uint64_t>::Element *E = physics_2d_mouseover.front(); E; E = E->next()) {
-							if (E->get() != frame) {
-								Object *o = ObjectDB::get_instance(E->key());
-								if (o) {
+							for (Map<ObjectID, uint64_t>::Element *E = physics_2d_mouseover.front(); E; E = E->next()) {
+								if (E->get() != frame) {
+									Object *o = ObjectDB::get_instance(E->key());
+									if (o) {
 
-									CollisionObject2D *co = Object::cast_to<CollisionObject2D>(o);
-									if (co) {
-										co->_mouse_exit();
+										CollisionObject2D *co = Object::cast_to<CollisionObject2D>(o);
+										if (co) {
+											co->_mouse_exit();
+										}
 									}
+									to_erase.push_back(E);
 								}
-								to_erase.push_back(E);
 							}
-						}
 
-						while (to_erase.size()) {
-							physics_2d_mouseover.erase(to_erase.front()->get());
-							to_erase.pop_front();
+							while (to_erase.size()) {
+								physics_2d_mouseover.erase(to_erase.front()->get());
+								to_erase.pop_front();
+							}
 						}
 					}
 
@@ -583,7 +580,7 @@ void Viewport::_notification(int p_what) {
 
 						CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(physics_object_capture));
 						if (co) {
-							_collision_object_input_event(co, camera, ev, Vector3(), Vector3(), 0, discard_empty_motion);
+							_collision_object_input_event(co, camera, ev, Vector3(), Vector3(), 0);
 							captured = true;
 							if (mb.is_valid() && mb->get_button_index() == 1 && !mb->is_pressed()) {
 								physics_object_capture = 0;
@@ -601,7 +598,7 @@ void Viewport::_notification(int p_what) {
 						if (last_id) {
 							if (ObjectDB::get_instance(last_id) && last_object) {
 								//good, exists
-								_collision_object_input_event(last_object, camera, ev, result.position, result.normal, result.shape, discard_empty_motion);
+								_collision_object_input_event(last_object, camera, ev, result.position, result.normal, result.shape);
 								if (last_object->get_capture_input_on_drag() && mb.is_valid() && mb->get_button_index() == 1 && mb->is_pressed()) {
 									physics_object_capture = last_id;
 								}
@@ -624,7 +621,7 @@ void Viewport::_notification(int p_what) {
 									CollisionObject *co = Object::cast_to<CollisionObject>(result.collider);
 									if (co) {
 
-										_collision_object_input_event(co, camera, ev, result.position, result.normal, result.shape, discard_empty_motion);
+										_collision_object_input_event(co, camera, ev, result.position, result.normal, result.shape);
 										last_object = co;
 										last_id = result.collider_id;
 										new_collider = last_id;
@@ -634,42 +631,41 @@ void Viewport::_notification(int p_what) {
 									}
 								}
 
-								if (mm.is_valid()) {
-									_test_new_mouseover(new_collider);
+								if (is_mouse && new_collider != physics_object_over) {
+
+									if (physics_object_over) {
+
+										CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(physics_object_over));
+										if (co) {
+											co->_mouse_exit();
+										}
+									}
+
+									if (new_collider) {
+
+										CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(new_collider));
+										if (co) {
+											co->_mouse_enter();
+										}
+									}
+
+									physics_object_over = new_collider;
 								}
 							}
 
 							last_pos = pos;
 						}
 					}
-				}
-
-				if (!motion_tested && camera && physics_has_last_mousepos) {
-
-					//test anyway for mouseenter/exit because objects might move
-					Vector3 from = camera->project_ray_origin(physics_last_mousepos);
-					Vector3 dir = camera->project_ray_normal(physics_last_mousepos);
-
-					PhysicsDirectSpaceState *space = PhysicsServer::get_singleton()->space_get_direct_state(find_world()->get_space());
-					if (space) {
-
-						bool col = space->intersect_ray(from, from + dir * 10000, result, Set<RID>(), 0xFFFFFFFF, true, true, true);
-						ObjectID new_collider = 0;
-						if (col) {
-							CollisionObject *co = Object::cast_to<CollisionObject>(result.collider);
-							if (co) {
-								new_collider = result.collider_id;
-							}
-						}
-
-						_test_new_mouseover(new_collider);
-					}
 #endif
 				}
 			}
 
 		} break;
+		case SceneTree::NOTIFICATION_WM_MOUSE_EXIT:
 		case SceneTree::NOTIFICATION_WM_FOCUS_OUT: {
+
+			_drop_physics_mouseover();
+
 			if (gui.mouse_focus) {
 				//if mouse is being pressed, send a release event
 				_drop_mouse_focus();
@@ -890,7 +886,7 @@ void Viewport::_camera_set(Camera *p_camera) {
 	if (camera == p_camera)
 		return;
 
-	if (camera && find_world().is_valid()) {
+	if (camera) {
 		camera->notification(Camera::NOTIFICATION_LOST_CURRENT);
 	}
 	camera = p_camera;
@@ -899,7 +895,7 @@ void Viewport::_camera_set(Camera *p_camera) {
 	else
 		VisualServer::get_singleton()->viewport_attach_camera(viewport, RID());
 
-	if (camera && find_world().is_valid()) {
+	if (camera) {
 		camera->notification(Camera::NOTIFICATION_BECAME_CURRENT);
 	}
 
@@ -918,9 +914,7 @@ void Viewport::_camera_remove(Camera *p_camera) {
 
 	cameras.erase(p_camera);
 	if (camera == p_camera) {
-		if (camera && find_world().is_valid()) {
-			camera->notification(Camera::NOTIFICATION_LOST_CURRENT);
-		}
+		camera->notification(Camera::NOTIFICATION_LOST_CURRENT);
 		camera = NULL;
 	}
 }
@@ -1017,7 +1011,7 @@ void Viewport::_propagate_enter_world(Node *p_node) {
 			Viewport *v = Object::cast_to<Viewport>(p_node);
 			if (v) {
 
-				if (v->world.is_valid())
+				if (v->world.is_valid() || v->own_world.is_valid())
 					return;
 			}
 		}
@@ -1054,7 +1048,7 @@ void Viewport::_propagate_exit_world(Node *p_node) {
 			Viewport *v = Object::cast_to<Viewport>(p_node);
 			if (v) {
 
-				if (v->world.is_valid())
+				if (v->world.is_valid() || v->own_world.is_valid())
 					return;
 			}
 		}
@@ -1074,22 +1068,10 @@ void Viewport::set_world(const Ref<World> &p_world) {
 	if (is_inside_tree())
 		_propagate_exit_world(this);
 
-#ifndef _3D_DISABLED
-	if (find_world().is_valid() && camera)
-		camera->notification(Camera::NOTIFICATION_LOST_CURRENT);
-#endif
-
 	world = p_world;
 
 	if (is_inside_tree())
 		_propagate_enter_world(this);
-
-#ifndef _3D_DISABLED
-	if (find_world().is_valid() && camera)
-		camera->notification(Camera::NOTIFICATION_BECAME_CURRENT);
-#endif
-
-	//propagate exit
 
 	if (is_inside_tree()) {
 		VisualServer::get_singleton()->viewport_set_scenario(viewport, find_world()->get_scenario());
@@ -1486,7 +1468,8 @@ void Viewport::_gui_show_tooltip() {
 	gui.tooltip_popup->set_as_toplevel(true);
 	//gui.tooltip_popup->hide();
 
-	Rect2 r(gui.tooltip_pos + Point2(10, 10), gui.tooltip_popup->get_minimum_size());
+	Point2 tooltip_offset = ProjectSettings::get_singleton()->get("display/mouse_cursor/tooltip_position_offset");
+	Rect2 r(gui.tooltip_pos + tooltip_offset, gui.tooltip_popup->get_minimum_size());
 	Rect2 vr = gui.tooltip_popup->get_viewport_rect();
 	if (r.size.x + r.position.x > vr.size.x)
 		r.position.x = vr.size.x - r.size.x;
@@ -1747,8 +1730,8 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 				while (!gui.modal_stack.empty()) {
 
 					Control *top = gui.modal_stack.back()->get();
-					Vector2 pos = top->get_global_transform_with_canvas().affine_inverse().xform(mpos);
-					if (!top->has_point(pos)) {
+					Vector2 pos2 = top->get_global_transform_with_canvas().affine_inverse().xform(mpos);
+					if (!top->has_point(pos2)) {
 
 						if (top->data.modal_exclusive || top->data.modal_frame == Engine::get_singleton()->get_frames_drawn()) {
 							//cancel event, sorry, modal exclusive EATS UP ALL
@@ -1783,12 +1766,14 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 				*/
 
 				gui.mouse_focus = _gui_find_control(pos);
-				gui.mouse_focus_mask = 1 << (mb->get_button_index() - 1);
 				gui.last_mouse_focus = gui.mouse_focus;
 
 				if (!gui.mouse_focus) {
+					gui.mouse_focus_mask = 0;
 					return;
 				}
+
+				gui.mouse_focus_mask = 1 << (mb->get_button_index() - 1);
 
 				if (mb->get_button_index() == BUTTON_LEFT) {
 					gui.drag_accum = Vector2();
@@ -2303,32 +2288,32 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 		if (from && p_event->is_pressed()) {
 			Control *next = NULL;
 
-			if (p_event->is_action("ui_focus_next")) {
+			if (p_event->is_action_pressed("ui_focus_next")) {
 
 				next = from->find_next_valid_focus();
 			}
 
-			if (p_event->is_action("ui_focus_prev")) {
+			if (p_event->is_action_pressed("ui_focus_prev")) {
 
 				next = from->find_prev_valid_focus();
 			}
 
-			if (!mods && p_event->is_action("ui_up")) {
+			if (!mods && p_event->is_action_pressed("ui_up")) {
 
 				next = from->_get_focus_neighbour(MARGIN_TOP);
 			}
 
-			if (!mods && p_event->is_action("ui_left")) {
+			if (!mods && p_event->is_action_pressed("ui_left")) {
 
 				next = from->_get_focus_neighbour(MARGIN_LEFT);
 			}
 
-			if (!mods && p_event->is_action("ui_right")) {
+			if (!mods && p_event->is_action_pressed("ui_right")) {
 
 				next = from->_get_focus_neighbour(MARGIN_RIGHT);
 			}
 
-			if (!mods && p_event->is_action("ui_down")) {
+			if (!mods && p_event->is_action_pressed("ui_down")) {
 
 				next = from->_get_focus_neighbour(MARGIN_BOTTOM);
 			}
@@ -2483,11 +2468,7 @@ void Viewport::_gui_hid_control(Control *p_control) {
 	if (gui.mouse_over == p_control)
 		gui.mouse_over = NULL;
 	if (gui.tooltip == p_control)
-		gui.tooltip = NULL;
-	if (gui.tooltip == p_control) {
-		gui.tooltip = NULL;
 		_gui_cancel_tooltip();
-	}
 }
 
 void Viewport::_gui_remove_control(Control *p_control) {
@@ -2495,6 +2476,9 @@ void Viewport::_gui_remove_control(Control *p_control) {
 	if (gui.mouse_focus == p_control) {
 		gui.mouse_focus = NULL;
 		gui.mouse_focus_mask = 0;
+	}
+	if (gui.last_mouse_focus == p_control) {
+		gui.last_mouse_focus = NULL;
 	}
 	if (gui.key_focus == p_control)
 		gui.key_focus = NULL;
@@ -2563,6 +2547,31 @@ void Viewport::_drop_mouse_focus() {
 			c->call_multilevel(SceneStringNames::get_singleton()->_gui_input, mb);
 		}
 	}
+}
+
+void Viewport::_drop_physics_mouseover() {
+
+	physics_has_last_mousepos = false;
+
+	while (physics_2d_mouseover.size()) {
+		Object *o = ObjectDB::get_instance(physics_2d_mouseover.front()->key());
+		if (o) {
+			CollisionObject2D *co = Object::cast_to<CollisionObject2D>(o);
+			co->_mouse_exit();
+		}
+		physics_2d_mouseover.erase(physics_2d_mouseover.front());
+	}
+
+#ifndef _3D_DISABLED
+	if (physics_object_over) {
+		CollisionObject *co = Object::cast_to<CollisionObject>(ObjectDB::get_instance(physics_object_over));
+		if (co) {
+			co->_mouse_exit();
+		}
+	}
+
+	physics_object_over = physics_object_capture = 0;
+#endif
 }
 
 List<Control *>::Element *Viewport::_gui_show_modal(Control *p_control) {
@@ -2699,11 +2708,6 @@ void Viewport::set_use_own_world(bool p_world) {
 	if (is_inside_tree())
 		_propagate_exit_world(this);
 
-#ifndef _3D_DISABLED
-	if (find_world().is_valid() && camera)
-		camera->notification(Camera::NOTIFICATION_LOST_CURRENT);
-#endif
-
 	if (!p_world)
 		own_world = Ref<World>();
 	else
@@ -2711,13 +2715,6 @@ void Viewport::set_use_own_world(bool p_world) {
 
 	if (is_inside_tree())
 		_propagate_enter_world(this);
-
-#ifndef _3D_DISABLED
-	if (find_world().is_valid() && camera)
-		camera->notification(Camera::NOTIFICATION_BECAME_CURRENT);
-#endif
-
-	//propagate exit
 
 	if (is_inside_tree()) {
 		VisualServer::get_singleton()->viewport_set_scenario(viewport, find_world()->get_scenario());
@@ -2740,6 +2737,19 @@ void Viewport::set_attach_to_screen_rect(const Rect2 &p_rect) {
 Rect2 Viewport::get_attach_to_screen_rect() const {
 
 	return to_screen_rect;
+}
+
+void Viewport::set_use_render_direct_to_screen(bool p_render_direct_to_screen) {
+
+	if (p_render_direct_to_screen == render_direct_to_screen)
+		return;
+
+	render_direct_to_screen = p_render_direct_to_screen;
+	VS::get_singleton()->viewport_set_render_direct_to_screen(viewport, p_render_direct_to_screen);
+}
+
+bool Viewport::is_using_render_direct_to_screen() const {
+	return render_direct_to_screen;
 }
 
 void Viewport::set_physics_object_picking(bool p_enable) {
@@ -2920,6 +2930,13 @@ bool Viewport::is_handling_input_locally() const {
 	return handle_input_locally;
 }
 
+void Viewport::_validate_property(PropertyInfo &property) const {
+
+	if (VisualServer::get_singleton()->is_low_end() && property.name == "hdr") {
+		property.usage = PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL;
+	}
+}
+
 void Viewport::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_use_arvr", "use"), &Viewport::set_use_arvr);
@@ -3000,6 +3017,8 @@ void Viewport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_as_audio_listener_2d", "enable"), &Viewport::set_as_audio_listener_2d);
 	ClassDB::bind_method(D_METHOD("is_audio_listener_2d"), &Viewport::is_audio_listener_2d);
 	ClassDB::bind_method(D_METHOD("set_attach_to_screen_rect", "rect"), &Viewport::set_attach_to_screen_rect);
+	ClassDB::bind_method(D_METHOD("set_use_render_direct_to_screen", "enable"), &Viewport::set_use_render_direct_to_screen);
+	ClassDB::bind_method(D_METHOD("is_using_render_direct_to_screen"), &Viewport::is_using_render_direct_to_screen);
 
 	ClassDB::bind_method(D_METHOD("get_mouse_position"), &Viewport::get_mouse_position);
 	ClassDB::bind_method(D_METHOD("warp_mouse", "to_position"), &Viewport::warp_mouse);
@@ -3054,6 +3073,7 @@ void Viewport::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "disable_3d"), "set_disable_3d", "is_3d_disabled");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "keep_3d_linear"), "set_keep_3d_linear", "get_keep_3d_linear");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "usage", PROPERTY_HINT_ENUM, "2D,2D No-Sampling,3D,3D No-Effects"), "set_usage", "get_usage");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "render_direct_to_screen"), "set_use_render_direct_to_screen", "is_using_render_direct_to_screen");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "debug_draw", PROPERTY_HINT_ENUM, "Disabled,Unshaded,Overdraw,Wireframe"), "set_debug_draw", "get_debug_draw");
 	ADD_GROUP("Render Target", "render_target_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "render_target_v_flip"), "set_vflip", "get_vflip");
@@ -3136,6 +3156,8 @@ Viewport::Viewport() {
 	texture_rid = VisualServer::get_singleton()->viewport_get_texture(viewport);
 	texture_flags = 0;
 
+	render_direct_to_screen = false;
+
 	default_texture.instance();
 	default_texture->vp = const_cast<Viewport *>(this);
 	viewport_textures.insert(default_texture.ptr());
@@ -3190,7 +3212,7 @@ Viewport::Viewport() {
 	gui.tooltip_timer = -1;
 
 	//gui.tooltip_timer->force_parent_owned();
-	gui.tooltip_delay = GLOBAL_DEF("gui/timers/tooltip_delay_sec", 0.7);
+	gui.tooltip_delay = GLOBAL_DEF("gui/timers/tooltip_delay_sec", 0.5);
 	ProjectSettings::get_singleton()->set_custom_property_info("gui/timers/tooltip_delay_sec", PropertyInfo(Variant::REAL, "gui/timers/tooltip_delay_sec", PROPERTY_HINT_RANGE, "0,5,0.01,or_greater")); // No negative numbers
 
 	gui.tooltip = NULL;
@@ -3199,6 +3221,8 @@ Viewport::Viewport() {
 	gui.drag_attempted = false;
 	gui.canvas_sort_index = 0;
 	gui.roots_order_dirty = false;
+	gui.mouse_focus = NULL;
+	gui.last_mouse_focus = NULL;
 
 	msaa = MSAA_DISABLED;
 	hdr = true;

@@ -165,6 +165,9 @@ protected:
 	static void _bind_methods();
 
 public:
+	static const int DEVICE_ID_TOUCH_MOUSE;
+	static const int DEVICE_ID_INTERNAL;
+
 	void set_device(int p_device);
 	int get_device() const;
 
@@ -186,6 +189,7 @@ public:
 	virtual bool shortcut_match(const Ref<InputEvent> &p_event) const;
 	virtual bool is_action_type() const;
 
+	virtual bool accumulate(const Ref<InputEvent> &p_event) { return false; }
 	InputEvent();
 };
 
@@ -351,6 +355,8 @@ public:
 	virtual Ref<InputEvent> xformed_by(const Transform2D &p_xform, const Vector2 &p_local_ofs = Vector2()) const;
 	virtual String as_text() const;
 
+	virtual bool accumulate(const Ref<InputEvent> &p_event);
+
 	InputEventMouseMotion();
 };
 
@@ -400,6 +406,7 @@ public:
 	float get_pressure() const;
 
 	virtual bool action_match(const Ref<InputEvent> &p_event, bool *p_pressed, float *p_strength, float p_deadzone) const;
+	virtual bool shortcut_match(const Ref<InputEvent> &p_event) const;
 
 	virtual bool is_action_type() const { return true; }
 	virtual String as_text() const;
@@ -468,6 +475,7 @@ class InputEventAction : public InputEvent {
 
 	StringName action;
 	bool pressed;
+	float strength;
 
 protected:
 	static void _bind_methods();
@@ -478,6 +486,9 @@ public:
 
 	void set_pressed(bool p_pressed);
 	virtual bool is_pressed() const;
+
+	void set_strength(float p_strength);
+	float get_strength() const;
 
 	virtual bool is_action(const StringName &p_action) const;
 

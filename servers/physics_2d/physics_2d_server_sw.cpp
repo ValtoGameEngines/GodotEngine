@@ -36,8 +36,8 @@
 #include "core/project_settings.h"
 #include "core/script_language.h"
 
-#define FLUSH_QUERY_CHECK                                                                                                                        \
-	if (flushing_queries) {                                                                                                                      \
+#define FLUSH_QUERY_CHECK(m_object)                                                                                                              \
+	if (m_object->get_space() && flushing_queries) {                                                                                             \
 		ERR_EXPLAIN("Can't change this state while flushing queries. Use call_deferred() or set_deferred() to change monitoring state instead"); \
 		ERR_FAIL();                                                                                                                              \
 	}
@@ -378,7 +378,7 @@ Physics2DServer::AreaSpaceOverrideMode Physics2DServerSW::area_get_space_overrid
 	return area->get_space_override_mode();
 }
 
-void Physics2DServerSW::area_add_shape(RID p_area, RID p_shape, const Transform2D &p_transform) {
+void Physics2DServerSW::area_add_shape(RID p_area, RID p_shape, const Transform2D &p_transform, bool p_disabled) {
 
 	Area2DSW *area = area_owner.get(p_area);
 	ERR_FAIL_COND(!area);
@@ -386,7 +386,7 @@ void Physics2DServerSW::area_add_shape(RID p_area, RID p_shape, const Transform2
 	Shape2DSW *shape = shape_owner.get(p_shape);
 	ERR_FAIL_COND(!shape);
 
-	area->add_shape(shape, p_transform);
+	area->add_shape(shape, p_transform, p_disabled);
 }
 
 void Physics2DServerSW::area_set_shape(RID p_area, int p_shape_idx, RID p_shape) {
@@ -410,12 +410,11 @@ void Physics2DServerSW::area_set_shape_transform(RID p_area, int p_shape_idx, co
 
 void Physics2DServerSW::area_set_shape_disabled(RID p_area, int p_shape, bool p_disabled) {
 
-	FLUSH_QUERY_CHECK
-
 	Area2DSW *area = area_owner.get(p_area);
 	ERR_FAIL_COND(!area);
-
 	ERR_FAIL_INDEX(p_shape, area->get_shape_count());
+	FLUSH_QUERY_CHECK(area);
+
 	area->set_shape_as_disabled(p_shape, p_disabled);
 }
 
@@ -461,7 +460,7 @@ void Physics2DServerSW::area_clear_shapes(RID p_area) {
 		area->remove_shape(0);
 }
 
-void Physics2DServerSW::area_attach_object_instance_id(RID p_area, ObjectID p_ID) {
+void Physics2DServerSW::area_attach_object_instance_id(RID p_area, ObjectID p_id) {
 
 	if (space_owner.owns(p_area)) {
 		Space2DSW *space = space_owner.get(p_area);
@@ -469,7 +468,7 @@ void Physics2DServerSW::area_attach_object_instance_id(RID p_area, ObjectID p_ID
 	}
 	Area2DSW *area = area_owner.get(p_area);
 	ERR_FAIL_COND(!area);
-	area->set_instance_id(p_ID);
+	area->set_instance_id(p_id);
 }
 ObjectID Physics2DServerSW::area_get_object_instance_id(RID p_area) const {
 
@@ -482,7 +481,7 @@ ObjectID Physics2DServerSW::area_get_object_instance_id(RID p_area) const {
 	return area->get_instance_id();
 }
 
-void Physics2DServerSW::area_attach_canvas_instance_id(RID p_area, ObjectID p_ID) {
+void Physics2DServerSW::area_attach_canvas_instance_id(RID p_area, ObjectID p_id) {
 
 	if (space_owner.owns(p_area)) {
 		Space2DSW *space = space_owner.get(p_area);
@@ -490,7 +489,7 @@ void Physics2DServerSW::area_attach_canvas_instance_id(RID p_area, ObjectID p_ID
 	}
 	Area2DSW *area = area_owner.get(p_area);
 	ERR_FAIL_COND(!area);
-	area->set_canvas_instance_id(p_ID);
+	area->set_canvas_instance_id(p_id);
 }
 ObjectID Physics2DServerSW::area_get_canvas_instance_id(RID p_area) const {
 
@@ -550,10 +549,9 @@ void Physics2DServerSW::area_set_pickable(RID p_area, bool p_pickable) {
 
 void Physics2DServerSW::area_set_monitorable(RID p_area, bool p_monitorable) {
 
-	FLUSH_QUERY_CHECK
-
 	Area2DSW *area = area_owner.get(p_area);
 	ERR_FAIL_COND(!area);
+	FLUSH_QUERY_CHECK(area);
 
 	area->set_monitorable(p_monitorable);
 }
@@ -630,10 +628,9 @@ RID Physics2DServerSW::body_get_space(RID p_body) const {
 
 void Physics2DServerSW::body_set_mode(RID p_body, BodyMode p_mode) {
 
-	FLUSH_QUERY_CHECK
-
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
+	FLUSH_QUERY_CHECK(body);
 
 	body->set_mode(p_mode);
 };
@@ -646,7 +643,7 @@ Physics2DServer::BodyMode Physics2DServerSW::body_get_mode(RID p_body) const {
 	return body->get_mode();
 };
 
-void Physics2DServerSW::body_add_shape(RID p_body, RID p_shape, const Transform2D &p_transform) {
+void Physics2DServerSW::body_add_shape(RID p_body, RID p_shape, const Transform2D &p_transform, bool p_disabled) {
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
@@ -654,7 +651,7 @@ void Physics2DServerSW::body_add_shape(RID p_body, RID p_shape, const Transform2
 	Shape2DSW *shape = shape_owner.get(p_shape);
 	ERR_FAIL_COND(!shape);
 
-	body->add_shape(shape, p_transform);
+	body->add_shape(shape, p_transform, p_disabled);
 }
 
 void Physics2DServerSW::body_set_shape(RID p_body, int p_shape_idx, RID p_shape) {
@@ -734,12 +731,10 @@ void Physics2DServerSW::body_clear_shapes(RID p_body) {
 
 void Physics2DServerSW::body_set_shape_disabled(RID p_body, int p_shape_idx, bool p_disabled) {
 
-	FLUSH_QUERY_CHECK
-
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
-
 	ERR_FAIL_INDEX(p_shape_idx, body->get_shape_count());
+	FLUSH_QUERY_CHECK(body);
 
 	body->set_shape_as_disabled(p_shape_idx, p_disabled);
 }
@@ -747,8 +742,8 @@ void Physics2DServerSW::body_set_shape_as_one_way_collision(RID p_body, int p_sh
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
-
 	ERR_FAIL_INDEX(p_shape_idx, body->get_shape_count());
+	FLUSH_QUERY_CHECK(body);
 
 	body->set_shape_as_one_way_collision(p_shape_idx, p_enable, p_margin);
 }
@@ -768,12 +763,12 @@ Physics2DServerSW::CCDMode Physics2DServerSW::body_get_continuous_collision_dete
 	return body->get_continuous_collision_detection_mode();
 }
 
-void Physics2DServerSW::body_attach_object_instance_id(RID p_body, uint32_t p_ID) {
+void Physics2DServerSW::body_attach_object_instance_id(RID p_body, uint32_t p_id) {
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
 
-	body->set_instance_id(p_ID);
+	body->set_instance_id(p_id);
 };
 
 uint32_t Physics2DServerSW::body_get_object_instance_id(RID p_body) const {
@@ -784,12 +779,12 @@ uint32_t Physics2DServerSW::body_get_object_instance_id(RID p_body) const {
 	return body->get_instance_id();
 };
 
-void Physics2DServerSW::body_attach_canvas_instance_id(RID p_body, uint32_t p_ID) {
+void Physics2DServerSW::body_attach_canvas_instance_id(RID p_body, uint32_t p_id) {
 
 	Body2DSW *body = body_owner.get(p_body);
 	ERR_FAIL_COND(!body);
 
-	body->set_canvas_instance_id(p_ID);
+	body->set_canvas_instance_id(p_id);
 };
 
 uint32_t Physics2DServerSW::body_get_canvas_instance_id(RID p_body) const {

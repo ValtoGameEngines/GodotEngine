@@ -30,6 +30,7 @@
 
 #include "visual_script.h"
 
+#include "core/core_string_names.h"
 #include "core/os/os.h"
 #include "core/project_settings.h"
 #include "scene/main/node.h"
@@ -45,25 +46,7 @@ bool VisualScriptNode::is_breakpoint() const {
 	return breakpoint;
 }
 
-void VisualScriptNode::_notification(int p_what) {
-
-	if (p_what == NOTIFICATION_POSTINITIALIZE) {
-		_update_input_ports();
-	}
-}
-
-void VisualScriptNode::_update_input_ports() {
-	default_input_values.resize(MAX(default_input_values.size(), get_input_value_port_count())); //let it grow as big as possible, we don't want to lose values on resize
-	int port_count = get_input_value_port_count();
-	for (int i = 0; i < port_count; i++) {
-		Variant::Type expected = get_input_value_port_info(i).type;
-		Variant::CallError ce;
-		set_default_input_value(i, Variant::construct(expected, NULL, 0, ce, false));
-	}
-}
-
 void VisualScriptNode::ports_changed_notify() {
-	_update_input_ports();
 	emit_signal("ports_changed");
 }
 
@@ -92,8 +75,7 @@ void VisualScriptNode::_set_default_input_values(Array p_values) {
 }
 
 void VisualScriptNode::validate_input_default_values() {
-
-	default_input_values.resize(get_input_value_port_count());
+	default_input_values.resize(MAX(default_input_values.size(), get_input_value_port_count())); //let it grow as big as possible, we don't want to lose values on resize
 
 	//actually validate on save
 	for (int i = 0; i < get_input_value_port_count(); i++) {
@@ -119,8 +101,10 @@ void VisualScriptNode::validate_input_default_values() {
 Array VisualScriptNode::_get_default_input_values() const {
 
 	//validate on save, since on load there is little info about this
+	Array values = default_input_values;
+	values.resize(get_input_value_port_count());
 
-	return default_input_values;
+	return values;
 }
 
 String VisualScriptNode::get_text() const {
@@ -281,11 +265,7 @@ void VisualScript::_node_ports_changed(int p_id) {
 	Function &func = functions[function];
 	Ref<VisualScriptNode> vsn = func.nodes[p_id].node;
 
-	if (OS::get_singleton()->get_main_loop() &&
-			Object::cast_to<SceneTree>(OS::get_singleton()->get_main_loop()) &&
-			Engine::get_singleton()->is_editor_hint()) {
-		vsn->validate_input_default_values(); //force validate default values when editing on editor
-	}
+	vsn->validate_input_default_values();
 
 	//must revalidate all the functions
 
@@ -361,6 +341,7 @@ void VisualScript::add_node(const StringName &p_func, int p_id, const Ref<Visual
 	Ref<VisualScriptNode> vsn = p_node;
 	vsn->connect("ports_changed", this, "_node_ports_changed", varray(p_id));
 	vsn->scripts_used.insert(this);
+	vsn->validate_input_default_values(); // Validate when fully loaded
 
 	func.nodes[p_id] = nd;
 }
@@ -1165,9 +1146,9 @@ void VisualScript::_set_data(const Dictionary &p_data) {
 
 		Array nodes = func["nodes"];
 
-		for (int i = 0; i < nodes.size(); i += 3) {
+		for (int j = 0; j < nodes.size(); j += 3) {
 
-			add_node(name, nodes[i], nodes[i + 2], nodes[i + 1]);
+			add_node(name, nodes[j], nodes[j + 2], nodes[j + 1]);
 		}
 
 		Array sequence_connections = func["sequence_connections"];
@@ -1983,6 +1964,27 @@ void VisualScriptInstance::notification(int p_notification) {
 	const Variant *whatp = &what;
 	Variant::CallError ce;
 	call(VisualScriptLanguage::singleton->notification, &whatp, 1, ce); //do as call
+}
+
+String VisualScriptInstance::to_string(bool *r_valid) {
+	if (has_method(CoreStringNames::get_singleton()->_to_string)) {
+		Variant::CallError ce;
+		Variant ret = call(CoreStringNames::get_singleton()->_to_string, NULL, 0, ce);
+		if (ce.error == Variant::CallError::CALL_OK) {
+			if (ret.get_type() != Variant::STRING) {
+				if (r_valid)
+					*r_valid = false;
+				ERR_EXPLAIN("Wrong type for " + CoreStringNames::get_singleton()->_to_string + ", must be a String.");
+				ERR_FAIL_V(String());
+			}
+			if (r_valid)
+				*r_valid = true;
+			return ret.operator String();
+		}
+	}
+	if (r_valid)
+		*r_valid = false;
+	return String();
 }
 
 Ref<Script> VisualScriptInstance::get_script() const {

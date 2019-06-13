@@ -196,7 +196,8 @@ void BodySW::set_param(PhysicsServer::BodyParameter p_param, real_t p_value) {
 
 			angular_damp = p_value;
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -226,7 +227,8 @@ real_t BodySW::get_param(PhysicsServer::BodyParameter p_param) const {
 			return angular_damp;
 		} break;
 
-		default: {}
+		default: {
+		}
 	}
 
 	return 0;
@@ -474,7 +476,8 @@ void BodySW::integrate_forces(real_t p_step) {
 					_compute_area_gravity_and_dampenings(aa[i].area);
 					stopped = mode == PhysicsServer::AREA_SPACE_OVERRIDE_REPLACE;
 				} break;
-				default: {}
+				default: {
+				}
 			}
 		}
 	}
@@ -652,7 +655,7 @@ void BodySW::simulate_motion(const Transform& p_xform,real_t p_step) {
 	linear_velocity=(p_xform.origin - get_transform().origin)/p_step;
 
 	//compute a FAKE angular velocity, not so easy
-	Matrix3 rot=get_transform().basis.orthonormalized().transposed() * p_xform.basis.orthonormalized();
+	Basis rot=get_transform().basis.orthonormalized().transposed() * p_xform.basis.orthonormalized();
 	Vector3 axis;
 	real_t angle;
 

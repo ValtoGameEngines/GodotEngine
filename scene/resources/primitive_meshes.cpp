@@ -157,6 +157,12 @@ Mesh::PrimitiveType PrimitiveMesh::surface_get_primitive_type(int p_idx) const {
 	return primitive_type;
 }
 
+void PrimitiveMesh::surface_set_material(int p_idx, const Ref<Material> &p_material) {
+	ERR_FAIL_INDEX(p_idx, 1);
+
+	set_material(p_material);
+}
+
 Ref<Material> PrimitiveMesh::surface_get_material(int p_idx) const {
 	ERR_FAIL_INDEX_V(p_idx, 1, NULL);
 
@@ -376,17 +382,17 @@ void CapsuleMesh::_create_mesh_array(Array &p_arr) const {
 		z = radius * cos(0.5 * Math_PI * v);
 
 		for (i = 0; i <= radial_segments; i++) {
-			float u = i;
-			u /= radial_segments;
+			float u2 = i;
+			u2 /= radial_segments;
 
-			x = sin(u * (Math_PI * 2.0));
-			y = -cos(u * (Math_PI * 2.0));
+			x = sin(u2 * (Math_PI * 2.0));
+			y = -cos(u2 * (Math_PI * 2.0));
 
 			Vector3 p = Vector3(x * radius * w, y * radius * w, z);
 			points.push_back(p + Vector3(0.0, 0.0, -0.5 * mid_height));
 			normals.push_back(p.normalized());
 			ADD_TANGENT(-y, x, 0.0, 1.0)
-			uvs.push_back(Vector2(u, twothirds + ((v - 1.0) * onethird)));
+			uvs.push_back(Vector2(u2, twothirds + ((v - 1.0) * onethird)));
 			point++;
 
 			if (i > 0 && j > 0) {

@@ -33,7 +33,7 @@
 
 #include "core/self_list.h"
 #include "core/vset.h"
-#include "scene/2d/navigation2d.h"
+#include "scene/2d/navigation_2d.h"
 #include "scene/2d/node_2d.h"
 #include "scene/resources/tile_set.h"
 
@@ -52,6 +52,8 @@ public:
 		HALF_OFFSET_X,
 		HALF_OFFSET_Y,
 		HALF_OFFSET_DISABLED,
+		HALF_OFFSET_NEGATIVE_X,
+		HALF_OFFSET_NEGATIVE_Y,
 	};
 
 	enum TileOrigin {

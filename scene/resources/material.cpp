@@ -30,11 +30,20 @@
 
 #include "material.h"
 
+#ifdef TOOLS_ENABLED
+#include "editor/editor_settings.h"
+#endif
+
 #include "scene/scene_string_names.h"
 
 void Material::set_next_pass(const Ref<Material> &p_pass) {
 
-	ERR_FAIL_COND(p_pass == this);
+	for (Ref<Material> pass_child = p_pass; pass_child != NULL; pass_child = pass_child->get_next_pass()) {
+		if (pass_child == this) {
+			ERR_EXPLAIN("Can't set as next_pass one of its parents to prevent crashes due to recursive loop.");
+			ERR_FAIL_COND(pass_child == this);
+		}
+	}
 
 	if (next_pass == p_pass)
 		return;
@@ -113,6 +122,9 @@ bool ShaderMaterial::_set(const StringName &p_name, const Variant &p_value) {
 			if (n.find("param/") == 0) { //backwards compatibility
 				pr = n.substr(6, n.length());
 			}
+			if (n.find("shader_param/") == 0) { //backwards compatibility
+				pr = n.replace_first("shader_param/", "");
+			}
 		}
 		if (pr) {
 			VisualServer::get_singleton()->material_set_param(_get_material(), pr, p_value);
@@ -128,6 +140,16 @@ bool ShaderMaterial::_get(const StringName &p_name, Variant &r_ret) const {
 	if (shader.is_valid()) {
 
 		StringName pr = shader->remap_param(p_name);
+		if (!pr) {
+			String n = p_name;
+			if (n.find("param/") == 0) { //backwards compatibility
+				pr = n.substr(6, n.length());
+			}
+			if (n.find("shader_param/") == 0) { //backwards compatibility
+				pr = n.replace_first("shader_param/", "");
+			}
+		}
+
 		if (pr) {
 			r_ret = VisualServer::get_singleton()->material_get_param(_get_material(), pr);
 			return true;
@@ -223,6 +245,12 @@ void ShaderMaterial::_bind_methods() {
 
 void ShaderMaterial::get_argument_options(const StringName &p_function, int p_idx, List<String> *r_options) const {
 
+#ifdef TOOLS_ENABLED
+	const String quote_style = EDITOR_DEF("text_editor/completion/use_single_quotes", 0) ? "'" : "\"";
+#else
+	const String quote_style = "\"";
+#endif
+
 	String f = p_function.operator String();
 	if ((f == "get_shader_param" || f == "set_shader_param") && p_idx == 0) {
 
@@ -230,7 +258,7 @@ void ShaderMaterial::get_argument_options(const StringName &p_function, int p_id
 			List<PropertyInfo> pl;
 			shader->get_param_list(&pl);
 			for (List<PropertyInfo>::Element *E = pl.front(); E; E = E->next()) {
-				r_options->push_back("\"" + E->get().name.replace_first("shader_param/", "") + "\"");
+				r_options->push_back(quote_style + E->get().name.replace_first("shader_param/", "") + quote_style);
 			}
 		}
 	}
@@ -445,6 +473,9 @@ void SpatialMaterial::_update_shader() {
 	if (flags[FLAG_ENSURE_CORRECT_NORMALS]) {
 		code += ",ensure_correct_normals";
 	}
+	if (flags[FLAG_USE_SHADOW_TO_OPACITY]) {
+		code += ",shadow_to_opacity";
+	}
 	code += ";\n";
 
 	code += "uniform vec4 albedo : hint_color;\n";
@@ -594,17 +625,17 @@ void SpatialMaterial::_update_shader() {
 			code += "\tMODELVIEW_MATRIX = INV_CAMERA_MATRIX * mat4(CAMERA_MATRIX[0],CAMERA_MATRIX[1],CAMERA_MATRIX[2],WORLD_MATRIX[3]);\n";
 
 			if (flags[FLAG_BILLBOARD_KEEP_SCALE]) {
-				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(WORLD_MATRIX[0].xyz),0,0,0),vec4(0,length(WORLD_MATRIX[1].xyz),0,0),vec4(0,0,length(WORLD_MATRIX[2].xyz),0),vec4(0,0,0,1));\n";
+				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(WORLD_MATRIX[0].xyz), 0.0, 0.0, 0.0),vec4(0.0, length(WORLD_MATRIX[1].xyz), 0.0, 0.0),vec4(0.0, 0.0, length(WORLD_MATRIX[2].xyz), 0.0),vec4(0.0, 0.0, 0.0, 1.0));\n";
 			}
 		} break;
 		case BILLBOARD_FIXED_Y: {
 
-			code += "\tMODELVIEW_MATRIX = INV_CAMERA_MATRIX * mat4(CAMERA_MATRIX[0],WORLD_MATRIX[1],vec4(normalize(cross(CAMERA_MATRIX[0].xyz,WORLD_MATRIX[1].xyz)),0.0),WORLD_MATRIX[3]);\n";
+			code += "\tMODELVIEW_MATRIX = INV_CAMERA_MATRIX * mat4(CAMERA_MATRIX[0],WORLD_MATRIX[1],vec4(normalize(cross(CAMERA_MATRIX[0].xyz,WORLD_MATRIX[1].xyz)), 0.0),WORLD_MATRIX[3]);\n";
 
 			if (flags[FLAG_BILLBOARD_KEEP_SCALE]) {
-				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(WORLD_MATRIX[0].xyz),0,0,0),vec4(0,1,0,0),vec4(0,0,length(WORLD_MATRIX[2].xyz),0),vec4(0,0,0,1));\n";
+				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(WORLD_MATRIX[0].xyz), 0.0, 0.0, 0.0),vec4(0.0, 1.0, 0.0, 0.0),vec4(0.0, 0.0, length(WORLD_MATRIX[2].xyz), 0.0), vec4(0.0, 0.0, 0.0, 1.0));\n";
 			} else {
-				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(1,0,0,0),vec4(0,1.0/length(WORLD_MATRIX[1].xyz),0,0),vec4(0,0,1,0),vec4(0,0,0,1));\n";
+				code += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(1.0, 0.0, 0.0, 0.0),vec4(0.0, 1.0/length(WORLD_MATRIX[1].xyz), 0.0, 0.0), vec4(0.0, 0.0, 1.0, 0.0),vec4(0.0, 0.0, 0.0 ,1.0));\n";
 			}
 		} break;
 		case BILLBOARD_PARTICLES: {
@@ -612,16 +643,22 @@ void SpatialMaterial::_update_shader() {
 			//make billboard
 			code += "\tmat4 mat_world = mat4(normalize(CAMERA_MATRIX[0])*length(WORLD_MATRIX[0]),normalize(CAMERA_MATRIX[1])*length(WORLD_MATRIX[0]),normalize(CAMERA_MATRIX[2])*length(WORLD_MATRIX[2]),WORLD_MATRIX[3]);\n";
 			//rotate by rotation
-			code += "\tmat_world = mat_world * mat4( vec4(cos(INSTANCE_CUSTOM.x),-sin(INSTANCE_CUSTOM.x),0.0,0.0), vec4(sin(INSTANCE_CUSTOM.x),cos(INSTANCE_CUSTOM.x),0.0,0.0),vec4(0.0,0.0,1.0,0.0),vec4(0.0,0.0,0.0,1.0));\n";
+			code += "\tmat_world = mat_world * mat4( vec4(cos(INSTANCE_CUSTOM.x),-sin(INSTANCE_CUSTOM.x), 0.0, 0.0), vec4(sin(INSTANCE_CUSTOM.x), cos(INSTANCE_CUSTOM.x), 0.0, 0.0),vec4(0.0, 0.0, 1.0, 0.0),vec4(0.0, 0.0, 0.0, 1.0));\n";
 			//set modelview
 			code += "\tMODELVIEW_MATRIX = INV_CAMERA_MATRIX * mat_world;\n";
 
 			//handle animation
+			code += "\tfloat h_frames = float(particles_anim_h_frames);\n";
+			code += "\tfloat v_frames = float(particles_anim_v_frames);\n";
 			code += "\tfloat particle_total_frames = float(particles_anim_h_frames * particles_anim_v_frames);\n";
 			code += "\tfloat particle_frame = floor(INSTANCE_CUSTOM.z * float(particle_total_frames));\n";
-			code += "\tif (!particles_anim_loop) particle_frame=clamp(particle_frame,0.0,particle_total_frames-1.0); else particle_frame=mod(particle_frame,float(particle_total_frames));\n";
-			code += "\tUV /= vec2(float(particles_anim_h_frames),float(particles_anim_v_frames));\n";
-			code += "\tUV += vec2(mod(particle_frame,float(particles_anim_h_frames)) / float(particles_anim_h_frames), floor(particle_frame / float(particles_anim_h_frames)) / float(particles_anim_v_frames));\n";
+			code += "\tif (!particles_anim_loop) {\n";
+			code += "\t\tparticle_frame = clamp(particle_frame, 0.0, particle_total_frames - 1.0);\n";
+			code += "\t} else {\n";
+			code += "\t\tparticle_frame = mod(particle_frame, particle_total_frames);\n";
+			code += "\t}";
+			code += "\tUV /= vec2(h_frames, v_frames);\n";
+			code += "\tUV += vec2(mod(particle_frame, h_frames) / h_frames, floor(particle_frame / h_frames) / v_frames);\n";
 		} break;
 	}
 
@@ -702,7 +739,7 @@ void SpatialMaterial::_update_shader() {
 		code += "\tvec2 base_uv2 = UV2;\n";
 	}
 
-	if (features[FEATURE_DEPTH_MAPPING] && !flags[FLAG_UV1_USE_TRIPLANAR]) { //depthmap not supported with triplanar
+	if (!VisualServer::get_singleton()->is_low_end() && features[FEATURE_DEPTH_MAPPING] && !flags[FLAG_UV1_USE_TRIPLANAR]) { //depthmap not supported with triplanar
 		code += "\t{\n";
 		code += "\t\tvec3 view_dir = normalize(normalize(-VERTEX)*mat3(TANGENT*depth_flip.x,-BINORMAL*depth_flip.y,NORMAL));\n"; // binormal is negative due to mikktspace, flip 'unflips' it ;-)
 
@@ -820,11 +857,11 @@ void SpatialMaterial::_update_shader() {
 		code += "\tALBEDO *= 1.0 - ref_amount;\n";
 		code += "\tALPHA = 1.0;\n";
 
-	} else if (features[FEATURE_TRANSPARENT] || flags[FLAG_USE_ALPHA_SCISSOR] || (distance_fade == DISTANCE_FADE_PIXEL_ALPHA) || proximity_fade_enabled) {
+	} else if (features[FEATURE_TRANSPARENT] || flags[FLAG_USE_ALPHA_SCISSOR] || flags[FLAG_USE_SHADOW_TO_OPACITY] || (distance_fade == DISTANCE_FADE_PIXEL_ALPHA) || proximity_fade_enabled) {
 		code += "\tALPHA = albedo.a * albedo_tex.a;\n";
 	}
 
-	if (!VisualServer::get_singleton()->is_low_end() && proximity_fade_enabled) {
+	if (proximity_fade_enabled) {
 		code += "\tfloat depth_tex = textureLod(DEPTH_TEXTURE,SCREEN_UV,0.0).r;\n";
 		code += "\tvec4 world_pos = INV_PROJECTION_MATRIX * vec4(SCREEN_UV*2.0-1.0,depth_tex*2.0-1.0,1.0);\n";
 		code += "\tworld_pos.xyz/=world_pos.w;\n";
@@ -1320,7 +1357,7 @@ void SpatialMaterial::set_flag(Flags p_flag, bool p_enabled) {
 		return;
 
 	flags[p_flag] = p_enabled;
-	if (p_flag == FLAG_USE_ALPHA_SCISSOR || p_flag == FLAG_UNSHADED) {
+	if ((p_flag == FLAG_USE_ALPHA_SCISSOR) || (p_flag == FLAG_UNSHADED) || (p_flag == FLAG_USE_SHADOW_TO_OPACITY)) {
 		_change_notify();
 	}
 	_queue_shader_change();
@@ -2031,6 +2068,7 @@ void SpatialMaterial::_bind_methods() {
 
 	ADD_GROUP("Flags", "flags_");
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_transparent"), "set_feature", "get_feature", FEATURE_TRANSPARENT);
+	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_use_shadow_to_opacity"), "set_flag", "get_flag", FLAG_USE_SHADOW_TO_OPACITY);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_unshaded"), "set_flag", "get_flag", FLAG_UNSHADED);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_vertex_lighting"), "set_flag", "get_flag", FLAG_USE_VERTEX_LIGHTING);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "flags_no_depth_test"), "set_flag", "get_flag", FLAG_DISABLE_DEPTH_TEST);
@@ -2237,6 +2275,7 @@ void SpatialMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(FLAG_DONT_RECEIVE_SHADOWS);
 	BIND_ENUM_CONSTANT(FLAG_DISABLE_AMBIENT_LIGHT);
 	BIND_ENUM_CONSTANT(FLAG_ENSURE_CORRECT_NORMALS);
+	BIND_ENUM_CONSTANT(FLAG_USE_SHADOW_TO_OPACITY);
 	BIND_ENUM_CONSTANT(FLAG_MAX);
 
 	BIND_ENUM_CONSTANT(DIFFUSE_BURLEY);

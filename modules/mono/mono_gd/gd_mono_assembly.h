@@ -84,10 +84,6 @@ class GDMonoAssembly {
 	bool gdobject_class_cache_updated;
 	Map<StringName, GDMonoClass *> gdobject_class_cache;
 
-#ifdef DEBUG_ENABLED
-	Vector<uint8_t> pdb_data;
-#endif
-
 	static bool no_search;
 	static bool in_preload;
 	static Vector<String> search_dirs;
@@ -126,7 +122,7 @@ public:
 
 	GDMonoClass *get_object_derived_class(const StringName &p_class);
 
-	static void fill_search_dirs(Vector<String> &r_search_dirs, const String &p_custom_config = String());
+	static void fill_search_dirs(Vector<String> &r_search_dirs, const String &p_custom_config = String(), const String &p_custom_bcl_dir = String());
 
 	static GDMonoAssembly *load_from(const String &p_name, const String &p_path, bool p_refonly);
 

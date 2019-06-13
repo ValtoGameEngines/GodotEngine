@@ -58,6 +58,7 @@ public:
 
 		int viewport_to_screen;
 		Rect2 viewport_to_screen_rect;
+		bool viewport_render_direct_to_screen;
 
 		bool hide_scenario;
 		bool hide_canvas;
@@ -90,7 +91,8 @@ public:
 			}
 			CanvasKey(const RID &p_canvas, int p_layer, int p_sublayer) {
 				canvas = p_canvas;
-				stacking = ((int64_t)p_layer << 32) + p_sublayer;
+				int64_t sign = p_layer < 0 ? -1 : 1;
+				stacking = sign * (((int64_t)ABS(p_layer)) << 32) + p_sublayer;
 			}
 			int get_layer() const { return stacking >> 32; }
 		};
@@ -146,6 +148,7 @@ public:
 
 private:
 	Color clear_color;
+	void _draw_3d(Viewport *p_viewport, ARVRInterface::Eyes p_eye);
 	void _draw_viewport(Viewport *p_viewport, ARVRInterface::Eyes p_eye = ARVRInterface::EYE_MONO);
 
 public:
@@ -156,6 +159,7 @@ public:
 	void viewport_set_size(RID p_viewport, int p_width, int p_height);
 
 	void viewport_attach_to_screen(RID p_viewport, const Rect2 &p_rect = Rect2(), int p_screen = 0);
+	void viewport_set_render_direct_to_screen(RID p_viewport, bool p_enable);
 	void viewport_detach(RID p_viewport);
 
 	void viewport_set_active(RID p_viewport, bool p_active);

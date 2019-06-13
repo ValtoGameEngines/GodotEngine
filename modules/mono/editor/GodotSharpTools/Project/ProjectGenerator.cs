@@ -80,7 +80,7 @@ namespace GodotSharpTools.Project
             toolsGroup.AddProperty("DebugSymbols", "true");
             toolsGroup.AddProperty("DebugType", "portable");
             toolsGroup.AddProperty("Optimize", "false");
-            toolsGroup.AddProperty("DefineConstants", "DEBUG;TOOLS;");
+            toolsGroup.AddProperty("DefineConstants", "$(GodotDefineConstants);GODOT;DEBUG;TOOLS;");
             toolsGroup.AddProperty("ErrorReport", "prompt");
             toolsGroup.AddProperty("WarningLevel", "4");
             toolsGroup.AddProperty("ConsolePause", "false");
@@ -140,6 +140,9 @@ namespace GodotSharpTools.Project
 
         public static ProjectRootElement CreateLibraryProject(string name, out ProjectPropertyGroupElement mainGroup)
         {
+            if (string.IsNullOrEmpty(name))
+                throw new ArgumentException($"{nameof(name)} cannot be empty", nameof(name));
+
             var root = ProjectRootElement.Create();
             root.DefaultTargets = "Build";
 
@@ -149,7 +152,7 @@ namespace GodotSharpTools.Project
             mainGroup.AddProperty("ProjectGuid", "{" + Guid.NewGuid().ToString().ToUpper() + "}");
             mainGroup.AddProperty("OutputType", "Library");
             mainGroup.AddProperty("OutputPath", Path.Combine("bin", "$(Configuration)"));
-            mainGroup.AddProperty("RootNamespace", name);
+            mainGroup.AddProperty("RootNamespace", IdentifierUtils.SanitizeQualifiedIdentifier(name, allowEmptyIdentifiers: true));
             mainGroup.AddProperty("AssemblyName", name);
             mainGroup.AddProperty("TargetFrameworkVersion", "v4.5");
 
@@ -158,7 +161,7 @@ namespace GodotSharpTools.Project
             debugGroup.AddProperty("DebugSymbols", "true");
             debugGroup.AddProperty("DebugType", "portable");
             debugGroup.AddProperty("Optimize", "false");
-            debugGroup.AddProperty("DefineConstants", "DEBUG;");
+            debugGroup.AddProperty("DefineConstants", "$(GodotDefineConstants);GODOT;DEBUG;");
             debugGroup.AddProperty("ErrorReport", "prompt");
             debugGroup.AddProperty("WarningLevel", "4");
             debugGroup.AddProperty("ConsolePause", "false");
@@ -167,6 +170,7 @@ namespace GodotSharpTools.Project
             releaseGroup.Condition = " '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ";
             releaseGroup.AddProperty("DebugType", "portable");
             releaseGroup.AddProperty("Optimize", "true");
+            releaseGroup.AddProperty("DefineConstants", "$(GodotDefineConstants);GODOT;");
             releaseGroup.AddProperty("ErrorReport", "prompt");
             releaseGroup.AddProperty("WarningLevel", "4");
             releaseGroup.AddProperty("ConsolePause", "false");

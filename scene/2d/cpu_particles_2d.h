@@ -68,6 +68,8 @@ public:
 
 	enum Flags {
 		FLAG_ALIGN_Y_TO_VELOCITY,
+		FLAG_ROTATE_Y, // Unused, but exposed for consistency with 3D.
+		FLAG_DISABLE_Z, // Unused, but exposed for consistency with 3D.
 		FLAG_MAX
 	};
 
@@ -103,6 +105,7 @@ private:
 	float inactive_time;
 	float frame_remainder;
 	int cycle;
+	bool redraw;
 
 	RID mesh;
 	RID multimesh;
@@ -115,7 +118,7 @@ private:
 		const Particle *particles;
 
 		bool operator()(int p_a, int p_b) const {
-			return particles[p_a].time < particles[p_b].time;
+			return particles[p_a].time > particles[p_b].time;
 		}
 	};
 
@@ -178,6 +181,8 @@ private:
 	void _update_render_thread();
 
 	void _update_mesh_texture();
+
+	void _set_redraw(bool p_redraw);
 
 protected:
 	static void _bind_methods();

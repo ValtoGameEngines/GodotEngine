@@ -85,8 +85,7 @@ public:
 	_FORCE_INLINE_ int size() const { return _cowdata.size(); }
 	Error resize(int p_size) { return _cowdata.resize(p_size); }
 
-	_FORCE_INLINE_ char get(int p_index) { return _cowdata.get(p_index); }
-	_FORCE_INLINE_ const char get(int p_index) const { return _cowdata.get(p_index); }
+	_FORCE_INLINE_ char get(int p_index) const { return _cowdata.get(p_index); }
 	_FORCE_INLINE_ void set(int p_index, const char &p_elem) { _cowdata.set(p_index, p_elem); }
 	_FORCE_INLINE_ const char &operator[](int p_index) const {
 		if (unlikely(p_index == _cowdata.size()))
@@ -98,12 +97,21 @@ public:
 
 	_FORCE_INLINE_ CharString() {}
 	_FORCE_INLINE_ CharString(const CharString &p_str) { _cowdata._ref(p_str._cowdata); }
+	_FORCE_INLINE_ CharString operator=(const CharString &p_str) {
+		_cowdata._ref(p_str._cowdata);
+		return *this;
+	}
+	_FORCE_INLINE_ CharString(const char *p_cstr) { copy_from(p_cstr); }
 
+	CharString &operator=(const char *p_cstr);
 	bool operator<(const CharString &p_right) const;
 	CharString &operator+=(char p_char);
 	int length() const { return size() ? size() - 1 : 0; }
 	const char *get_data() const;
 	operator const char *() const { return get_data(); };
+
+protected:
+	void copy_from(const char *p_cstr);
 };
 
 typedef wchar_t CharType;
@@ -143,8 +151,7 @@ public:
 
 	_FORCE_INLINE_ void clear() { resize(0); }
 
-	_FORCE_INLINE_ CharType get(int p_index) { return _cowdata.get(p_index); }
-	_FORCE_INLINE_ const CharType get(int p_index) const { return _cowdata.get(p_index); }
+	_FORCE_INLINE_ CharType get(int p_index) const { return _cowdata.get(p_index); }
 	_FORCE_INLINE_ void set(int p_index, const CharType &p_elem) { _cowdata.set(p_index, p_elem); }
 	_FORCE_INLINE_ int size() const { return _cowdata.size(); }
 	Error resize(int p_size) { return _cowdata.resize(p_size); }
@@ -197,7 +204,7 @@ public:
 	String substr(int p_from, int p_chars) const;
 	int find(const String &p_str, int p_from = 0) const; ///< return <0 if failed
 	int find(const char *p_str, int p_from = 0) const; ///< return <0 if failed
-	int find_char(CharType p_char, int p_from = 0) const; ///< return <0 if failed
+	int find_char(const CharType &p_char, int p_from = 0) const; ///< return <0 if failed
 	int find_last(const String &p_str) const; ///< return <0 if failed
 	int findn(const String &p_str, int p_from = 0) const; ///< return <0 if failed, case insensitive
 	int rfind(const String &p_str, int p_from = -1) const; ///< return <0 if failed
@@ -244,6 +251,7 @@ public:
 	int to_int() const;
 
 	int64_t hex_to_int64(bool p_with_prefix = true) const;
+	int64_t bin_to_int64(bool p_with_prefix = true) const;
 	int64_t to_int64() const;
 	static int to_int(const char *p_str, int p_len = -1);
 	static double to_double(const char *p_str);
@@ -333,6 +341,7 @@ public:
 	bool is_valid_hex_number(bool p_with_prefix) const;
 	bool is_valid_html_color() const;
 	bool is_valid_ip_address() const;
+	bool is_valid_filename() const;
 
 	/**
 	 * The constructors must not depend on other overloads
@@ -341,6 +350,10 @@ public:
 
 	_FORCE_INLINE_ String() {}
 	_FORCE_INLINE_ String(const String &p_str) { _cowdata._ref(p_str._cowdata); }
+	String operator=(const String &p_str) {
+		_cowdata._ref(p_str._cowdata);
+		return *this;
+	}
 
 	String(const char *p_str);
 	String(const CharType *p_str, int p_clip_to_len = -1);
@@ -400,11 +413,18 @@ _FORCE_INLINE_ bool is_str_less(const L *l_ptr, const R *r_ptr) {
 //tool translate
 #ifdef TOOLS_ENABLED
 
+//gets parsed
 String TTR(const String &);
+//use for c strings
+#define TTRC(m_value) m_value
+//use to avoid parsing (for use later with C strings)
+#define TTRGET(m_value) TTR(m_value)
 
 #else
 
 #define TTR(m_val) (String())
+#define TTRCDEF(m_value) (m_value)
+#define TTRC(m_value) (m_value)
 
 #endif
 

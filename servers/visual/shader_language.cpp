@@ -132,6 +132,7 @@ const char *ShaderLanguage::token_names[TK_MAX] = {
 	"TYPE_SAMPLERCUBE",
 	"INTERPOLATION_FLAT",
 	"INTERPOLATION_SMOOTH",
+	"CONST",
 	"PRECISION_LOW",
 	"PRECISION_MID",
 	"PRECISION_HIGH",
@@ -271,6 +272,7 @@ const ShaderLanguage::KeyWord ShaderLanguage::keyword_list[] = {
 	{ TK_TYPE_SAMPLERCUBE, "samplerCube" },
 	{ TK_INTERPOLATION_FLAT, "flat" },
 	{ TK_INTERPOLATION_SMOOTH, "smooth" },
+	{ TK_CONST, "const" },
 	{ TK_PRECISION_LOW, "lowp" },
 	{ TK_PRECISION_MID, "mediump" },
 	{ TK_PRECISION_HIGH, "highp" },
@@ -616,7 +618,7 @@ ShaderLanguage::Token ShaderLanguage::_get_token() {
 					else
 						tk.type = TK_INT_CONSTANT;
 
-					tk.constant = str.to_double(); //wont work with hex
+					tk.constant = str.to_double(); //won't work with hex
 					tk.line = tk_line;
 
 					return tk;
@@ -916,6 +918,16 @@ bool ShaderLanguage::_find_identifier(const BlockNode *p_block, const Map<String
 		}
 		if (r_type) {
 			*r_type = IDENTIFIER_UNIFORM;
+		}
+		return true;
+	}
+
+	if (shader->constants.has(p_identifier)) {
+		if (r_data_type) {
+			*r_data_type = shader->constants[p_identifier].type;
+		}
+		if (r_type) {
+			*r_type = IDENTIFIER_CONSTANT;
 		}
 		return true;
 	}
@@ -2075,7 +2087,7 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, OperatorNode *p
 				for (int i = 0; i < argcount; i++) {
 
 					if (get_scalar_type(args[i]) == args[i] && p_func->arguments[i + 1]->type == Node::TYPE_CONSTANT && convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), builtin_func_defs[idx].args[i])) {
-						//all good
+						//all good, but needs implicit conversion later
 					} else if (args[i] != builtin_func_defs[idx].args[i]) {
 						fail = true;
 						break;
@@ -2120,6 +2132,24 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, OperatorNode *p
 						}
 
 						outarg_idx++;
+					}
+					//implicitly convert values if possible
+					for (int i = 0; i < argcount; i++) {
+
+						if (get_scalar_type(args[i]) != args[i] || args[i] == builtin_func_defs[idx].args[i] || p_func->arguments[i + 1]->type != Node::TYPE_CONSTANT) {
+							//can't do implicit conversion here
+							continue;
+						}
+
+						//this is an implicit conversion
+						ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[i + 1]);
+						ConstantNode *conversion = alloc_node<ConstantNode>();
+
+						conversion->datatype = builtin_func_defs[idx].args[i];
+						conversion->values.resize(1);
+
+						convert_constant(constant, builtin_func_defs[idx].args[i], conversion->values.ptrw());
+						p_func->arguments.write[i + 1] = conversion;
 					}
 
 					if (r_ret_type)
@@ -2184,17 +2214,37 @@ bool ShaderLanguage::_validate_function_call(BlockNode *p_block, OperatorNode *p
 
 		bool fail = false;
 
-		for (int i = 0; i < args.size(); i++) {
+		for (int j = 0; j < args.size(); j++) {
 
-			if (get_scalar_type(args[i]) == args[i] && p_func->arguments[i + 1]->type == Node::TYPE_CONSTANT && convert_constant(static_cast<ConstantNode *>(p_func->arguments[i + 1]), pfunc->arguments[i].type)) {
-				//all good
-			} else if (args[i] != pfunc->arguments[i].type) {
+			if (get_scalar_type(args[j]) == args[j] && p_func->arguments[j + 1]->type == Node::TYPE_CONSTANT && convert_constant(static_cast<ConstantNode *>(p_func->arguments[j + 1]), pfunc->arguments[j].type)) {
+				//all good, but it needs implicit conversion later
+			} else if (args[j] != pfunc->arguments[j].type) {
 				fail = true;
 				break;
 			}
 		}
 
 		if (!fail) {
+
+			//implicitly convert values if possible
+			for (int k = 0; k < args.size(); k++) {
+
+				if (get_scalar_type(args[k]) != args[k] || args[k] == pfunc->arguments[k].type || p_func->arguments[k + 1]->type != Node::TYPE_CONSTANT) {
+					//can't do implicit conversion here
+					continue;
+				}
+
+				//this is an implicit conversion
+				ConstantNode *constant = static_cast<ConstantNode *>(p_func->arguments[k + 1]);
+				ConstantNode *conversion = alloc_node<ConstantNode>();
+
+				conversion->datatype = pfunc->arguments[k].type;
+				conversion->values.resize(1);
+
+				convert_constant(constant, pfunc->arguments[k].type, conversion->values.ptrw());
+				p_func->arguments.write[k + 1] = conversion;
+			}
+
 			if (r_ret_type)
 				*r_ret_type = pfunc->return_type;
 			return true;
@@ -2661,6 +2711,12 @@ bool ShaderLanguage::_validate_assign(Node *p_node, const Map<StringName, BuiltI
 			return false;
 		}
 
+		if (shader->constants.has(var->name)) {
+			if (r_message)
+				*r_message = RTR("Constants cannot be modified.");
+			return false;
+		}
+
 		if (!(p_builtin_types.has(var->name) && p_builtin_types[var->name].constant)) {
 			return true;
 		}
@@ -2897,7 +2953,7 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 		/* OK now see what's NEXT to the operator.. */
 
 		while (true) {
-			TkPos pos = _get_tkpos();
+			TkPos pos2 = _get_tkpos();
 			tk = _get_token();
 
 			if (tk.type == TK_CURSOR) {
@@ -2930,6 +2986,10 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 							member_type = DataType(dt - 1);
 						} else if (l == 2) {
 							member_type = dt;
+						} else if (l == 3) {
+							member_type = DataType(dt + 1);
+						} else if (l == 4) {
+							member_type = DataType(dt + 2);
 						} else {
 							ok = false;
 							break;
@@ -2963,6 +3023,8 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 							member_type = DataType(dt - 1);
 						} else if (l == 3) {
 							member_type = dt;
+						} else if (l == 4) {
+							member_type = DataType(dt + 1);
 						} else {
 							ok = false;
 							break;
@@ -3181,7 +3243,7 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 				expr = op;
 			} else {
 
-				_set_tkpos(pos);
+				_set_tkpos(pos2);
 				break;
 			}
 		}
@@ -3374,10 +3436,10 @@ ShaderLanguage::Node *ShaderLanguage::_parse_expression(BlockNode *p_block, cons
 				if (!_validate_operator(op, &op->return_cache)) {
 
 					String at;
-					for (int i = 0; i < op->arguments.size(); i++) {
-						if (i > 0)
+					for (int j = 0; j < op->arguments.size(); j++) {
+						if (j > 0)
 							at += " and ";
-						at += get_datatype_name(op->arguments[i]->get_datatype());
+						at += get_datatype_name(op->arguments[j]->get_datatype());
 					}
 					_set_error("Invalid arguments to unary operator '" + get_operator_text(op->op) + "' :" + at);
 					return NULL;
@@ -3582,7 +3644,8 @@ ShaderLanguage::Node *ShaderLanguage::_reduce_expression(BlockNode *p_block, Sha
 					case TYPE_FLOAT: {
 						nv.real = -cn->values[i].real;
 					} break;
-					default: {}
+					default: {
+					}
 				}
 
 				values.push_back(nv);
@@ -3948,7 +4011,7 @@ Error ShaderLanguage::_parse_block(BlockNode *p_block, const Map<StringName, Bui
 
 		} else {
 
-			//nothng else, so expression
+			//nothing else, so expression
 			_set_tkpos(pos); //rollback
 			Node *expr = _parse_and_reduce_expression(p_block, p_builtin_types);
 			if (!expr)
@@ -4103,17 +4166,17 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 				if (uniform) {
 
-					ShaderNode::Uniform uniform;
+					ShaderNode::Uniform uniform2;
 
 					if (is_sampler_type(type)) {
-						uniform.texture_order = texture_uniforms++;
-						uniform.order = -1;
+						uniform2.texture_order = texture_uniforms++;
+						uniform2.order = -1;
 					} else {
-						uniform.texture_order = -1;
-						uniform.order = uniforms++;
+						uniform2.texture_order = -1;
+						uniform2.order = uniforms++;
 					}
-					uniform.type = type;
-					uniform.precission = precision;
+					uniform2.type = type;
+					uniform2.precision = precision;
 
 					//todo parse default value
 
@@ -4124,26 +4187,26 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 						tk = _get_token();
 						if (tk.type == TK_HINT_WHITE_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_WHITE;
+							uniform2.hint = ShaderNode::Uniform::HINT_WHITE;
 						} else if (tk.type == TK_HINT_BLACK_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_BLACK;
+							uniform2.hint = ShaderNode::Uniform::HINT_BLACK;
 						} else if (tk.type == TK_HINT_NORMAL_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_NORMAL;
+							uniform2.hint = ShaderNode::Uniform::HINT_NORMAL;
 						} else if (tk.type == TK_HINT_ANISO_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_ANISO;
+							uniform2.hint = ShaderNode::Uniform::HINT_ANISO;
 						} else if (tk.type == TK_HINT_ALBEDO_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_ALBEDO;
+							uniform2.hint = ShaderNode::Uniform::HINT_ALBEDO;
 						} else if (tk.type == TK_HINT_BLACK_ALBEDO_TEXTURE) {
-							uniform.hint = ShaderNode::Uniform::HINT_BLACK_ALBEDO;
+							uniform2.hint = ShaderNode::Uniform::HINT_BLACK_ALBEDO;
 						} else if (tk.type == TK_HINT_COLOR) {
 							if (type != TYPE_VEC4) {
 								_set_error("Color hint is for vec4 only");
 								return ERR_PARSE_ERROR;
 							}
-							uniform.hint = ShaderNode::Uniform::HINT_COLOR;
+							uniform2.hint = ShaderNode::Uniform::HINT_COLOR;
 						} else if (tk.type == TK_HINT_RANGE) {
 
-							uniform.hint = ShaderNode::Uniform::HINT_RANGE;
+							uniform2.hint = ShaderNode::Uniform::HINT_RANGE;
 							if (type != TYPE_FLOAT && type != TYPE_INT) {
 								_set_error("Range hint is for float and int only");
 								return ERR_PARSE_ERROR;
@@ -4169,8 +4232,8 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 								return ERR_PARSE_ERROR;
 							}
 
-							uniform.hint_range[0] = tk.constant;
-							uniform.hint_range[0] *= sign;
+							uniform2.hint_range[0] = tk.constant;
+							uniform2.hint_range[0] *= sign;
 
 							tk = _get_token();
 
@@ -4193,8 +4256,8 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 								return ERR_PARSE_ERROR;
 							}
 
-							uniform.hint_range[1] = tk.constant;
-							uniform.hint_range[1] *= sign;
+							uniform2.hint_range[1] = tk.constant;
+							uniform2.hint_range[1] *= sign;
 
 							tk = _get_token();
 
@@ -4206,13 +4269,13 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 									return ERR_PARSE_ERROR;
 								}
 
-								uniform.hint_range[2] = tk.constant;
+								uniform2.hint_range[2] = tk.constant;
 								tk = _get_token();
 							} else {
 								if (type == TYPE_INT) {
-									uniform.hint_range[2] = 1;
+									uniform2.hint_range[2] = 1;
 								} else {
-									uniform.hint_range[2] = 0.001;
+									uniform2.hint_range[2] = 0.001;
 								}
 							}
 
@@ -4225,7 +4288,7 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 							_set_error("Expected valid type hint after ':'.");
 						}
 
-						if (uniform.hint != ShaderNode::Uniform::HINT_RANGE && uniform.hint != ShaderNode::Uniform::HINT_NONE && uniform.hint != ShaderNode::Uniform::HINT_COLOR && type <= TYPE_MAT4) {
+						if (uniform2.hint != ShaderNode::Uniform::HINT_RANGE && uniform2.hint != ShaderNode::Uniform::HINT_NONE && uniform2.hint != ShaderNode::Uniform::HINT_COLOR && type <= TYPE_MAT4) {
 							_set_error("This hint is only for sampler types");
 							return ERR_PARSE_ERROR;
 						}
@@ -4245,16 +4308,16 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 						ConstantNode *cn = static_cast<ConstantNode *>(expr);
 
-						uniform.default_value.resize(cn->values.size());
+						uniform2.default_value.resize(cn->values.size());
 
-						if (!convert_constant(cn, uniform.type, uniform.default_value.ptrw())) {
-							_set_error("Can't convert constant to " + get_datatype_name(uniform.type));
+						if (!convert_constant(cn, uniform2.type, uniform2.default_value.ptrw())) {
+							_set_error("Can't convert constant to " + get_datatype_name(uniform2.type));
 							return ERR_PARSE_ERROR;
 						}
 						tk = _get_token();
 					}
 
-					shader->uniforms[name] = uniform;
+					shader->uniforms[name] = uniform2;
 
 					if (tk.type != TK_SEMICOLON) {
 						_set_error("Expected ';'");
@@ -4264,7 +4327,7 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 					ShaderNode::Varying varying;
 					varying.type = type;
-					varying.precission = precision;
+					varying.precision = precision;
 					varying.interpolation = interpolation;
 					shader->varyings[name] = varying;
 
@@ -4277,11 +4340,17 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 			} break;
 			default: {
-				//function
+				//function or constant variable
 
+				bool is_constant = false;
 				DataPrecision precision = PRECISION_DEFAULT;
 				DataType type;
 				StringName name;
+
+				if (tk.type == TK_CONST) {
+					is_constant = true;
+					tk = _get_token();
+				}
 
 				if (is_token_precision(tk.type)) {
 					precision = get_token_precision(tk.type);
@@ -4289,12 +4358,12 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 				}
 
 				if (!is_token_datatype(tk.type)) {
-					_set_error("Expected function, uniform or varying ");
+					_set_error("Expected constant, function, uniform or varying ");
 					return ERR_PARSE_ERROR;
 				}
 
 				if (!is_token_variable_datatype(tk.type)) {
-					_set_error("Invalid data type for function return (samplers not allowed)");
+					_set_error("Invalid data type for constants or function return (samplers not allowed)");
 					return ERR_PARSE_ERROR;
 				}
 
@@ -4314,8 +4383,73 @@ Error ShaderLanguage::_parse_shader(const Map<StringName, FunctionInfo> &p_funct
 
 				tk = _get_token();
 				if (tk.type != TK_PARENTHESIS_OPEN) {
-					_set_error("Expected '(' after identifier");
-					return ERR_PARSE_ERROR;
+					if (type == TYPE_VOID) {
+						_set_error("Expected '(' after function identifier");
+						return ERR_PARSE_ERROR;
+					}
+
+					//variable
+
+					while (true) {
+						ShaderNode::Constant constant;
+						constant.type = type;
+						constant.precision = precision;
+						constant.initializer = NULL;
+
+						if (tk.type == TK_OP_ASSIGN) {
+
+							if (!is_constant) {
+								_set_error("Expected 'const' keyword before constant definition");
+								return ERR_PARSE_ERROR;
+							}
+
+							//variable created with assignment! must parse an expression
+							Node *expr = _parse_and_reduce_expression(NULL, Map<StringName, BuiltInInfo>());
+							if (!expr)
+								return ERR_PARSE_ERROR;
+
+							if (expr->type != Node::TYPE_CONSTANT) {
+								_set_error("Expected constant expression after '='");
+								return ERR_PARSE_ERROR;
+							}
+
+							constant.initializer = static_cast<ConstantNode *>(expr);
+
+							if (type != expr->get_datatype()) {
+								_set_error("Invalid assignment of '" + get_datatype_name(expr->get_datatype()) + "' to '" + get_datatype_name(type) + "'");
+								return ERR_PARSE_ERROR;
+							}
+							tk = _get_token();
+						} else {
+							_set_error("Expected initialization of constant");
+							return ERR_PARSE_ERROR;
+						}
+
+						shader->constants[name] = constant;
+						if (tk.type == TK_COMMA) {
+							tk = _get_token();
+							if (tk.type != TK_IDENTIFIER) {
+								_set_error("Expected identifier after type");
+								return ERR_PARSE_ERROR;
+							}
+
+							name = tk.text;
+							if (_find_identifier(NULL, Map<StringName, BuiltInInfo>(), name)) {
+								_set_error("Redefinition of '" + String(name) + "'");
+								return ERR_PARSE_ERROR;
+							}
+
+							tk = _get_token();
+
+						} else if (tk.type == TK_SEMICOLON) {
+							break;
+						} else {
+							_set_error("Expected ',' or ';' after constant");
+							return ERR_PARSE_ERROR;
+						}
+					}
+
+					break;
 				}
 
 				Map<StringName, BuiltInInfo> builtin_types;
@@ -4784,7 +4918,8 @@ Error ShaderLanguage::complete(const String &p_code, const Map<StringName, Funct
 				case TYPE_MAT2: limit = 2; break;
 				case TYPE_MAT3: limit = 3; break;
 				case TYPE_MAT4: limit = 4; break;
-				default: {}
+				default: {
+				}
 			}
 
 			for (int i = 0; i < limit; i++) {

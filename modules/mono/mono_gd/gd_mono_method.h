@@ -32,8 +32,8 @@
 #define GD_MONO_METHOD_H
 
 #include "gd_mono.h"
-#include "gd_mono_class_member.h"
 #include "gd_mono_header.h"
+#include "i_mono_class_member.h"
 
 class GDMonoMethod : public IMonoClassMember {
 
@@ -57,9 +57,11 @@ class GDMonoMethod : public IMonoClassMember {
 	MonoMethod *mono_method;
 
 public:
-	virtual MemberType get_member_type() GD_FINAL { return MEMBER_TYPE_METHOD; }
+	virtual GDMonoClass *get_enclosing_class() const GD_FINAL;
 
-	virtual StringName get_name() GD_FINAL { return name; }
+	virtual MemberType get_member_type() const GD_FINAL { return MEMBER_TYPE_METHOD; }
+
+	virtual StringName get_name() const GD_FINAL { return name; }
 
 	virtual bool is_static() GD_FINAL;
 

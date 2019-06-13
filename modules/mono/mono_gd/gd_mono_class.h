@@ -109,6 +109,9 @@ public:
 	String get_full_name() const;
 	MonoType *get_mono_type();
 
+	uint32_t get_flags() const;
+	bool is_static() const;
+
 	bool is_assignable_from(GDMonoClass *p_from) const;
 
 	_FORCE_INLINE_ StringName get_namespace() const { return namespace_name; }
@@ -131,6 +134,8 @@ public:
 
 	void fetch_attributes();
 	void fetch_methods_with_godot_api_checks(GDMonoClass *p_native_base);
+
+	bool implements_interface(GDMonoClass *p_interface);
 
 	GDMonoMethod *get_method(const StringName &p_name, int p_params_count = 0);
 	GDMonoMethod *get_method(MonoMethod *p_raw_method);

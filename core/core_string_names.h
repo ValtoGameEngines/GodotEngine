@@ -31,7 +31,7 @@
 #ifndef CORE_STRING_NAMES_H
 #define CORE_STRING_NAMES_H
 
-#include "core/string_db.h"
+#include "core/string_name.h"
 
 class CoreStringNames {
 
@@ -62,6 +62,7 @@ public:
 	StringName _iter_next;
 	StringName _iter_get;
 	StringName get_rid;
+	StringName _to_string;
 #ifdef TOOLS_ENABLED
 	StringName _sections_unfolded;
 #endif

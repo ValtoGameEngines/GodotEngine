@@ -107,6 +107,9 @@ void PathFollow::_update_transform() {
 	}
 
 	float bl = c->get_baked_length();
+	if (bl == 0.0) {
+		return;
+	}
 	float bi = c->get_bake_interval();
 	float o = offset;
 	float o_next = offset + bi;
@@ -122,11 +125,10 @@ void PathFollow::_update_transform() {
 	Vector3 pos = c->interpolate_baked(o, cubic);
 	Transform t = get_transform();
 	// Vector3 pos_offset = Vector3(h_offset, v_offset, 0); not used in all cases
-	// will be replaced by "Vector3(h_offset, v_offset, 0)" where it was formely used
+	// will be replaced by "Vector3(h_offset, v_offset, 0)" where it was formerly used
 
 	if (rotation_mode == ROTATION_ORIENTED) {
 
-		Vector3 pos = c->interpolate_baked(o, cubic);
 		Vector3 forward = c->interpolate_baked(o_next, cubic) - pos;
 
 		if (forward.length_squared() < CMP_EPSILON2)
@@ -171,7 +173,7 @@ void PathFollow::_update_transform() {
 		float dot = t_prev.dot(t_cur);
 		float angle = Math::acos(CLAMP(dot, -1, 1));
 
-		if (likely(Math::abs(angle) > CMP_EPSILON)) {
+		if (likely(!Math::is_zero_approx(angle))) {
 			if (rotation_mode == ROTATION_Y) {
 				// assuming we're referring to global Y-axis. is this correct?
 				axis.x = 0;
@@ -182,7 +184,7 @@ void PathFollow::_update_transform() {
 				// all components are allowed
 			}
 
-			if (likely(axis.length() > CMP_EPSILON)) {
+			if (likely(!Math::is_zero_approx(axis.length()))) {
 				t.rotate_basis(axis.normalized(), angle);
 			}
 		}
@@ -191,7 +193,7 @@ void PathFollow::_update_transform() {
 		float tilt_angle = c->interpolate_baked_tilt(o);
 		Vector3 tilt_axis = t_cur; // not sure what tilt is supposed to do, is this correct??
 
-		if (likely(Math::abs(tilt_angle) > CMP_EPSILON)) {
+		if (likely(!Math::is_zero_approx(Math::abs(tilt_angle)))) {
 			if (rotation_mode == ROTATION_Y) {
 				tilt_axis.x = 0;
 				tilt_axis.z = 0;
@@ -201,7 +203,7 @@ void PathFollow::_update_transform() {
 				// all components are allowed
 			}
 
-			if (likely(tilt_axis.length() > CMP_EPSILON)) {
+			if (likely(!Math::is_zero_approx(tilt_axis.length()))) {
 				t.rotate_basis(tilt_axis.normalized(), tilt_angle);
 			}
 		}

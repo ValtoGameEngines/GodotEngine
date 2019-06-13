@@ -32,8 +32,8 @@
 #define GD_MONO_PROPERTY_H
 
 #include "gd_mono.h"
-#include "gd_mono_class_member.h"
 #include "gd_mono_header.h"
+#include "i_mono_class_member.h"
 
 class GDMonoProperty : public IMonoClassMember {
 
@@ -47,9 +47,11 @@ class GDMonoProperty : public IMonoClassMember {
 	MonoCustomAttrInfo *attributes;
 
 public:
-	virtual MemberType get_member_type() GD_FINAL { return MEMBER_TYPE_PROPERTY; }
+	virtual GDMonoClass *get_enclosing_class() const GD_FINAL { return owner; }
 
-	virtual StringName get_name() GD_FINAL { return name; }
+	virtual MemberType get_member_type() const GD_FINAL { return MEMBER_TYPE_PROPERTY; }
+
+	virtual StringName get_name() const GD_FINAL { return name; }
 
 	virtual bool is_static() GD_FINAL;
 	virtual Visibility get_visibility() GD_FINAL;

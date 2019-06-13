@@ -37,6 +37,8 @@
 
 #include <stdlib.h>
 
+Mesh::ConvexDecompositionFunc Mesh::convex_composition_function = NULL;
+
 Ref<TriangleMesh> Mesh::generate_triangle_mesh() const {
 
 	if (triangle_mesh.is_valid())
@@ -84,15 +86,15 @@ Ref<TriangleMesh> Mesh::generate_triangle_mesh() const {
 			PoolVector<int> indices = a[ARRAY_INDEX];
 			PoolVector<int>::Read ir = indices.read();
 
-			for (int i = 0; i < ic; i++) {
-				int index = ir[i];
+			for (int j = 0; j < ic; j++) {
+				int index = ir[j];
 				facesw[widx++] = vr[index];
 			}
 
 		} else {
 
-			for (int i = 0; i < vc; i++)
-				facesw[widx++] = vr[i];
+			for (int j = 0; j < vc; j++)
+				facesw[widx++] = vr[j];
 		}
 	}
 
@@ -487,6 +489,7 @@ void Mesh::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_surface_count"), &Mesh::get_surface_count);
 	ClassDB::bind_method(D_METHOD("surface_get_arrays", "surf_idx"), &Mesh::surface_get_arrays);
 	ClassDB::bind_method(D_METHOD("surface_get_blend_shape_arrays", "surf_idx"), &Mesh::surface_get_blend_shape_arrays);
+	ClassDB::bind_method(D_METHOD("surface_set_material", "surf_idx", "material"), &Mesh::surface_set_material);
 	ClassDB::bind_method(D_METHOD("surface_get_material", "surf_idx"), &Mesh::surface_get_material);
 
 	BIND_ENUM_CONSTANT(PRIMITIVE_POINTS);
@@ -541,6 +544,49 @@ void Mesh::_bind_methods() {
 void Mesh::clear_cache() const {
 	triangle_mesh.unref();
 	debug_lines.clear();
+}
+
+Vector<Ref<Shape> > Mesh::convex_decompose() const {
+
+	ERR_FAIL_COND_V(!convex_composition_function, Vector<Ref<Shape> >());
+
+	PoolVector<Face3> faces = get_faces();
+	Vector<Face3> f3;
+	f3.resize(faces.size());
+	PoolVector<Face3>::Read f = faces.read();
+	for (int i = 0; i < f3.size(); i++) {
+		f3.write[i] = f[i];
+	}
+
+	Vector<Vector<Face3> > decomposed = convex_composition_function(f3);
+
+	Vector<Ref<Shape> > ret;
+
+	for (int i = 0; i < decomposed.size(); i++) {
+		Set<Vector3> points;
+		for (int j = 0; j < decomposed[i].size(); j++) {
+			points.insert(decomposed[i][j].vertex[0]);
+			points.insert(decomposed[i][j].vertex[1]);
+			points.insert(decomposed[i][j].vertex[2]);
+		}
+
+		PoolVector<Vector3> convex_points;
+		convex_points.resize(points.size());
+		{
+			PoolVector<Vector3>::Write w = convex_points.write();
+			int idx = 0;
+			for (Set<Vector3>::Element *E = points.front(); E; E = E->next()) {
+				w[idx++] = E->get();
+			}
+		}
+
+		Ref<ConvexPolygonShape> shape;
+		shape.instance();
+		shape->set_points(convex_points);
+		ret.push_back(shape);
+	}
+
+	return ret;
 }
 
 Mesh::Mesh() {
@@ -787,7 +833,6 @@ void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &
 	Surface s;
 
 	VisualServer::get_singleton()->mesh_add_surface_from_arrays(mesh, (VisualServer::PrimitiveType)p_primitive, p_arrays, p_blend_shapes, p_flags);
-	surfaces.push_back(s);
 
 	/* make aABB? */ {
 
@@ -808,8 +853,9 @@ void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &
 				aabb.expand_to(vtx[i]);
 		}
 
-		surfaces.write[surfaces.size() - 1].aabb = aabb;
-		surfaces.write[surfaces.size() - 1].is_2d = arr.get_type() == Variant::POOL_VECTOR2_ARRAY;
+		s.aabb = aabb;
+		s.is_2d = arr.get_type() == Variant::POOL_VECTOR2_ARRAY;
+		surfaces.push_back(s);
 
 		_recompute_aabb();
 	}
@@ -1026,34 +1072,6 @@ void ArrayMesh::set_custom_aabb(const AABB &p_custom) {
 AABB ArrayMesh::get_custom_aabb() const {
 
 	return custom_aabb;
-}
-
-void ArrayMesh::center_geometry() {
-
-	/*
-	Vector3 ofs = aabb.pos+aabb.size*0.5;
-
-	for(int i=0;i<get_surface_count();i++) {
-
-		PoolVector<Vector3> geom = surface_get_array(i,ARRAY_VERTEX);
-		int gc =geom.size();
-		PoolVector<Vector3>::Write w = geom.write();
-		surfaces[i].aabb.pos-=ofs;
-
-		for(int i=0;i<gc;i++) {
-
-			w[i]-=ofs;
-		}
-
-		w = PoolVector<Vector3>::Write();
-
-		surface_set_array(i,ARRAY_VERTEX,geom);
-
-	}
-
-	aabb.pos-=ofs;
-
-*/
 }
 
 void ArrayMesh::regen_normalmaps() {
@@ -1288,15 +1306,12 @@ void ArrayMesh::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("surface_get_array_index_len", "surf_idx"), &ArrayMesh::surface_get_array_index_len);
 	ClassDB::bind_method(D_METHOD("surface_get_format", "surf_idx"), &ArrayMesh::surface_get_format);
 	ClassDB::bind_method(D_METHOD("surface_get_primitive_type", "surf_idx"), &ArrayMesh::surface_get_primitive_type);
-	ClassDB::bind_method(D_METHOD("surface_set_material", "surf_idx", "material"), &ArrayMesh::surface_set_material);
 	ClassDB::bind_method(D_METHOD("surface_find_by_name", "name"), &ArrayMesh::surface_find_by_name);
 	ClassDB::bind_method(D_METHOD("surface_set_name", "surf_idx", "name"), &ArrayMesh::surface_set_name);
 	ClassDB::bind_method(D_METHOD("surface_get_name", "surf_idx"), &ArrayMesh::surface_get_name);
 	ClassDB::bind_method(D_METHOD("create_trimesh_shape"), &ArrayMesh::create_trimesh_shape);
 	ClassDB::bind_method(D_METHOD("create_convex_shape"), &ArrayMesh::create_convex_shape);
 	ClassDB::bind_method(D_METHOD("create_outline", "margin"), &ArrayMesh::create_outline);
-	ClassDB::bind_method(D_METHOD("center_geometry"), &ArrayMesh::center_geometry);
-	ClassDB::set_method_flags(get_class_static(), _scs_create("center_geometry"), METHOD_FLAGS_DEFAULT | METHOD_FLAG_EDITOR);
 	ClassDB::bind_method(D_METHOD("regen_normalmaps"), &ArrayMesh::regen_normalmaps);
 	ClassDB::set_method_flags(get_class_static(), _scs_create("regen_normalmaps"), METHOD_FLAGS_DEFAULT | METHOD_FLAG_EDITOR);
 	ClassDB::bind_method(D_METHOD("lightmap_unwrap", "transform", "texel_size"), &ArrayMesh::lightmap_unwrap);

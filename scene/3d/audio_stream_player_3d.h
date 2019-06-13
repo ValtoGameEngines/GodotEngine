@@ -46,6 +46,7 @@ public:
 		ATTENUATION_INVERSE_DISTANCE,
 		ATTENUATION_INVERSE_SQUARE_DISTANCE,
 		ATTENUATION_LOGARITHMIC,
+		ATTENUATION_DISABLED,
 	};
 
 	enum OutOfRangeMode {
@@ -204,6 +205,8 @@ public:
 
 	void set_stream_paused(bool p_pause);
 	bool get_stream_paused() const;
+
+	Ref<AudioStreamPlayback> get_stream_playback();
 
 	AudioStreamPlayer3D();
 	~AudioStreamPlayer3D();

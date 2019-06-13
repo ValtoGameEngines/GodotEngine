@@ -795,6 +795,47 @@ const char *OS_JavaScript::get_audio_driver_name(int p_driver) const {
 	return "JavaScript";
 }
 
+// Clipboard
+extern "C" EMSCRIPTEN_KEEPALIVE void update_clipboard(const char *p_text) {
+	// Only call set_clipboard from OS (sets local clipboard)
+	OS::get_singleton()->OS::set_clipboard(p_text);
+}
+
+void OS_JavaScript::set_clipboard(const String &p_text) {
+	OS::set_clipboard(p_text);
+	/* clang-format off */
+	int err = EM_ASM_INT({
+		var text = UTF8ToString($0);
+		if (!navigator.clipboard || !navigator.clipboard.writeText)
+			return 1;
+		navigator.clipboard.writeText(text).catch(e => {
+			// Setting OS clipboard is only possible from an input callback.
+			console.error("Setting OS clipboard is only possible from an input callback for the HTML5 plafrom. Exception:", e);
+		});
+		return 0;
+	}, p_text.utf8().get_data());
+	/* clang-format on */
+	ERR_EXPLAIN("Clipboard API is not supported.");
+	ERR_FAIL_COND(err);
+}
+
+String OS_JavaScript::get_clipboard() const {
+	/* clang-format off */
+	EM_ASM({
+		try {
+			navigator.clipboard.readText().then(function (result) {
+				ccall('update_clipboard', 'void', ['string'], [result]);
+			}).catch(function (e) {
+				// Fail graciously.
+			});
+		} catch (e) {
+			// Fail graciously.
+		}
+	});
+	/* clang-format on */
+	return this->OS::get_clipboard();
+}
+
 // Lifecycle
 int OS_JavaScript::get_current_video_driver() const {
 	return video_driver_index;
@@ -829,7 +870,7 @@ Error OS_JavaScript::initialize(const VideoMode &p_desired, int p_video_driver, 
 				RasterizerGLES3::make_current();
 				break;
 			} else {
-				if (GLOBAL_GET("rendering/quality/driver/driver_fallback") == "Best") {
+				if (GLOBAL_GET("rendering/quality/driver/fallback_to_gles2")) {
 					p_video_driver = VIDEO_DRIVER_GLES2;
 					gles3 = false;
 					continue;
@@ -939,6 +980,11 @@ Error OS_JavaScript::initialize(const VideoMode &p_desired, int p_video_driver, 
 		(['mouseover', 'mouseleave', 'focus', 'blur']).forEach(function(event, index) {
 			Module.canvas.addEventListener(event, send_notification.bind(null, notifications[index]));
 		});
+		// Clipboard
+		const update_clipboard = cwrap('update_clipboard', null, ['string']);
+		window.addEventListener('paste', function(evt) {
+			update_clipboard(evt.clipboardData.getData('text'));
+		}, true);
 	},
 		MainLoop::NOTIFICATION_WM_MOUSE_ENTER,
 		MainLoop::NOTIFICATION_WM_MOUSE_EXIT,
@@ -986,8 +1032,8 @@ bool OS_JavaScript::main_loop_iterate() {
 		if (sync_wait_time < 0) {
 			/* clang-format off */
 			EM_ASM(
-				FS.syncfs(function(err) {
-					if (err) { console.warn('Failed to save IDB file system: ' + err.message); }
+				FS.syncfs(function(error) {
+					if (error) { err('Failed to save IDB file system: ' + error.message); }
 				});
 			);
 			/* clang-format on */
@@ -1035,7 +1081,7 @@ void OS_JavaScript::finalize() {
 
 // Miscellaneous
 
-Error OS_JavaScript::execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id, String *r_pipe, int *r_exitcode, bool read_stderr) {
+Error OS_JavaScript::execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id, String *r_pipe, int *r_exitcode, bool read_stderr, Mutex *p_pipe_mutex) {
 
 	ERR_EXPLAIN("OS::execute() is not available on the HTML5 platform");
 	ERR_FAIL_V(ERR_UNAVAILABLE);
@@ -1071,16 +1117,6 @@ bool OS_JavaScript::_check_internal_feature_support(const String &p_feature) {
 		return true;
 #endif
 
-	EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
-	// All extensions are already automatically enabled, this function allows
-	// checking WebGL extension support without inline JavaScript
-	if (p_feature == "s3tc")
-		return emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_s3tc_srgb");
-	if (p_feature == "etc")
-		return emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_etc1");
-	if (p_feature == "etc2")
-		return emscripten_webgl_enable_extension(ctx, "WEBGL_compressed_texture_etc");
-
 	return false;
 }
 
@@ -1108,7 +1144,7 @@ void OS_JavaScript::set_icon(const Ref<Image> &p_icon) {
 	Ref<Image> icon = p_icon;
 	if (icon->is_compressed()) {
 		icon = icon->duplicate();
-		ERR_FAIL_COND(icon->decompress() != OK)
+		ERR_FAIL_COND(icon->decompress() != OK);
 	}
 	if (icon->get_format() != Image::FORMAT_RGBA8) {
 		if (icon == p_icon)
@@ -1169,7 +1205,7 @@ Error OS_JavaScript::shell_open(String p_uri) {
 	return OK;
 }
 
-String OS_JavaScript::get_name() {
+String OS_JavaScript::get_name() const {
 
 	return "HTML5";
 }

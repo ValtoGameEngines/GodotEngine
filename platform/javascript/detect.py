@@ -1,5 +1,4 @@
 import os
-import sys
 
 
 def is_active():
@@ -104,17 +103,19 @@ def configure(env):
 
     ## Compile flags
 
-    env.Append(CPPPATH=['#platform/javascript'])
+    env.Prepend(CPPPATH=['#platform/javascript'])
     env.Append(CPPDEFINES=['JAVASCRIPT_ENABLED', 'UNIX_ENABLED'])
 
     # No multi-threading (SharedArrayBuffer) available yet,
     # once feasible also consider memory buffer size issues.
     env.Append(CPPDEFINES=['NO_THREADS'])
 
-    # These flags help keep the file size down.
-    env.Append(CCFLAGS=['-fno-exceptions', '-fno-rtti'])
-    # Don't use dynamic_cast, necessary with no-rtti.
-    env.Append(CPPDEFINES=['NO_SAFE_CAST'])
+    # Disable exceptions and rtti on non-tools (template) builds
+    if not env['tools']:
+        # These flags help keep the file size down.
+        env.Append(CCFLAGS=['-fno-exceptions', '-fno-rtti'])
+        # Don't use dynamic_cast, necessary with no-rtti.
+        env.Append(CPPDEFINES=['NO_SAFE_CAST'])
 
     if env['javascript_eval']:
         env.Append(CPPDEFINES=['JAVASCRIPT_EVAL_ENABLED'])
@@ -129,10 +130,6 @@ def configure(env):
     # us since we don't know requirements at compile-time.
     env.Append(LINKFLAGS=['-s', 'ALLOW_MEMORY_GROWTH=1'])
 
-    # Since we use both memory growth and MEMFS preloading,
-    # this avoids unecessary copying on start-up.
-    env.Append(LINKFLAGS=['--no-heap-copy'])
-
     # This setting just makes WebGL 2 APIs available, it does NOT disable WebGL 1.
     env.Append(LINKFLAGS=['-s', 'USE_WEBGL2=1'])
 
@@ -140,7 +137,3 @@ def configure(env):
 
     # TODO: Reevaluate usage of this setting now that engine.js manages engine runtime.
     env.Append(LINKFLAGS=['-s', 'NO_EXIT_RUNTIME=1'])
-
-    # TODO: Move that to opus module's config.
-    if 'module_opus_enabled' in env and env['module_opus_enabled']:
-        env.opus_fixed_point = 'yes'

@@ -34,7 +34,7 @@
 #include "core/os/input.h"
 #include "crash_handler_osx.h"
 #include "drivers/coreaudio/audio_driver_coreaudio.h"
-#include "drivers/coremidi/core_midi.h"
+#include "drivers/coremidi/midi_driver_coremidi.h"
 #include "drivers/unix/os_unix.h"
 #include "joypad_osx.h"
 #include "main/input_default.h"
@@ -43,6 +43,7 @@
 #include "servers/visual/rasterizer.h"
 #include "servers/visual/visual_server_wrap_mt.h"
 #include "servers/visual_server.h"
+
 #include <AppKit/AppKit.h>
 #include <AppKit/NSCursor.h>
 #include <ApplicationServices/ApplicationServices.h>
@@ -59,6 +60,7 @@ public:
 		unsigned int osx_state;
 		bool pressed;
 		bool echo;
+		bool raw;
 		uint32_t scancode;
 		uint32_t unicode;
 	};
@@ -132,7 +134,7 @@ public:
 	String im_text;
 	Point2 im_selection;
 
-	power_osx *power_manager;
+	PowerOSX *power_manager;
 
 	CrashHandler crash_handler;
 
@@ -164,13 +166,14 @@ public:
 
 	void wm_minimized(bool p_minimized);
 
-	virtual String get_name();
+	virtual String get_name() const;
 
 	virtual void alert(const String &p_alert, const String &p_title = "ALERT!");
 
 	virtual Error open_dynamic_library(const String p_path, void *&p_library_handle, bool p_also_set_library_path = false);
 
 	virtual void set_cursor_shape(CursorShape p_shape);
+	virtual CursorShape get_cursor_shape() const;
 	virtual void set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, const Vector2 &p_hotspot);
 
 	virtual void set_mouse_show(bool p_show);
@@ -184,6 +187,7 @@ public:
 	virtual Size2 get_window_size() const;
 	virtual Size2 get_real_window_size() const;
 
+	virtual void set_native_icon(const String &p_filename);
 	virtual void set_icon(const Ref<Image> &p_icon);
 
 	virtual MainLoop *get_main_loop() const;

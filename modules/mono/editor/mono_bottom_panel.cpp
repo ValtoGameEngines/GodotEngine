@@ -125,8 +125,13 @@ void MonoBottomPanel::_build_tabs_item_selected(int p_idx) {
 
 void MonoBottomPanel::_build_tabs_nothing_selected() {
 
-	if (build_tabs->get_tab_count() != 0) // just in case
+	if (build_tabs->get_tab_count() != 0) { // just in case
 		build_tabs->set_visible(false);
+
+		// This callback is called when clicking on the empty space of the list.
+		// ItemList won't deselect the items automatically, so we must do it ourselves.
+		build_tabs_list->unselect_all();
+	}
 
 	warnings_btn->set_visible(false);
 	errors_btn->set_visible(false);
@@ -156,11 +161,24 @@ void MonoBottomPanel::_build_project_pressed() {
 	if (!FileAccess::exists(GodotSharpDirs::get_project_sln_path()))
 		return; // No solution to build
 
-	String scripts_metadata_path = GodotSharpDirs::get_res_metadata_dir().plus_file("scripts_metadata.editor");
-	Error metadata_err = CSharpProject::generate_scripts_metadata(GodotSharpDirs::get_project_csproj_path(), scripts_metadata_path);
+	String scripts_metadata_path_editor = GodotSharpDirs::get_res_metadata_dir().plus_file("scripts_metadata.editor");
+	String scripts_metadata_path_player = GodotSharpDirs::get_res_metadata_dir().plus_file("scripts_metadata.editor_player");
+
+	Error metadata_err = CSharpProject::generate_scripts_metadata(GodotSharpDirs::get_project_csproj_path(), scripts_metadata_path_editor);
 	ERR_FAIL_COND(metadata_err != OK);
 
-	bool build_success = GodotSharpBuilds::get_singleton()->build_project_blocking("Tools");
+	if (FileAccess::exists(scripts_metadata_path_editor)) {
+		DirAccessRef da = DirAccess::create(DirAccess::ACCESS_RESOURCES);
+		Error copy_err = da->copy(scripts_metadata_path_editor, scripts_metadata_path_player);
+
+		ERR_EXPLAIN("Failed to copy scripts metadata file");
+		ERR_FAIL_COND(copy_err != OK);
+	}
+
+	Vector<String> godot_defines;
+	godot_defines.push_back(OS::get_singleton()->get_name());
+	godot_defines.push_back((sizeof(void *) == 4 ? "32" : "64"));
+	bool build_success = GodotSharpBuilds::get_singleton()->build_project_blocking("Tools", godot_defines);
 
 	if (build_success) {
 		// Notify running game for hot-reload

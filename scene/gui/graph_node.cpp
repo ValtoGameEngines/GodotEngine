@@ -159,12 +159,9 @@ void GraphNode::_resort() {
 		fit_child_in_rect(c, r);
 		cache_y.push_back(vofs + size.y * 0.5);
 
-		if (vofs > 0)
-			vofs += sep;
-		vofs += size.y;
+		vofs += size.y + sep;
 	}
 
-	_change_notify();
 	update();
 	connpos_dirty = true;
 }
@@ -409,9 +406,12 @@ Size2 GraphNode::get_minimum_size() const {
 
 void GraphNode::set_title(const String &p_title) {
 
+	if (title == p_title)
+		return;
 	title = p_title;
-	minimum_size_changed();
 	update();
+	_change_notify("title");
+	minimum_size_changed();
 }
 
 String GraphNode::get_title() const {

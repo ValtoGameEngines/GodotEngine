@@ -28,15 +28,15 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef OSUWP_H
-#define OSUWP_H
+#ifndef OS_UWP_H
+#define OS_UWP_H
 
+#include "context_egl_uwp.h"
 #include "core/math/transform_2d.h"
 #include "core/os/input.h"
 #include "core/os/os.h"
 #include "core/ustring.h"
 #include "drivers/xaudio2/audio_driver_xaudio2.h"
-#include "gl_context_egl.h"
 #include "joypad_uwp.h"
 #include "main/input_default.h"
 #include "power_uwp.h"
@@ -52,7 +52,7 @@
 /**
 	@author Juan Linietsky <reduzio@gmail.com>
 */
-class OSUWP : public OS {
+class OS_UWP : public OS {
 
 public:
 	struct KeyEvent {
@@ -95,7 +95,7 @@ private:
 	VisualServer *visual_server;
 	int pressrc;
 
-	ContextEGL *gl_context;
+	ContextEGL_UWP *gl_context;
 	Windows::UI::Core::CoreWindow ^ window;
 
 	VideoMode video_mode;
@@ -144,7 +144,7 @@ private:
 		/* clang-format off */
 	internal:
 		ManagedType() { alert_close_handle = false; }
-		property OSUWP* os;
+		property OS_UWP* os;
 		/* clang-format on */
 	};
 	ManagedType ^ managed_object;
@@ -195,7 +195,7 @@ public:
 
 	virtual MainLoop *get_main_loop() const;
 
-	virtual String get_name();
+	virtual String get_name() const;
 
 	virtual Date get_date(bool utc) const;
 	virtual Time get_time(bool utc) const;
@@ -208,7 +208,7 @@ public:
 	virtual void delay_usec(uint32_t p_usec) const;
 	virtual uint64_t get_ticks_usec() const;
 
-	virtual Error execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id = NULL, String *r_pipe = NULL, int *r_exitcode = NULL, bool read_stderr = false);
+	virtual Error execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id = NULL, String *r_pipe = NULL, int *r_exitcode = NULL, bool read_stderr = false, Mutex *p_pipe_mutex = NULL);
 	virtual Error kill(const ProcessID &p_pid);
 
 	virtual bool has_environment(const String &p_var) const;
@@ -219,6 +219,7 @@ public:
 	virtual String get_clipboard() const;
 
 	void set_cursor_shape(CursorShape p_shape);
+	CursorShape get_cursor_shape() const;
 	virtual void set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, const Vector2 &p_hotspot);
 	void set_icon(const Ref<Image> &p_icon);
 
@@ -262,8 +263,8 @@ public:
 
 	void queue_key_event(KeyEvent &p_event);
 
-	OSUWP();
-	~OSUWP();
+	OS_UWP();
+	~OS_UWP();
 };
 
 #endif

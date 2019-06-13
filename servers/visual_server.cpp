@@ -776,7 +776,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 						continue; //break;
 					ERR_FAIL_INDEX_V(idx, total_bones, ERR_INVALID_DATA);
 
-					if (bptr->size.x < 0) {
+					if (bptr[idx].size.x < 0) {
 						//first
 						bptr[idx] = AABB(v, SMALL_VEC3);
 						any_valid = true;
@@ -1163,11 +1163,11 @@ void VisualServer::mesh_add_surface_from_arrays(RID p_mesh, PrimitiveType p_prim
 		PoolVector<uint8_t> noindex;
 
 		AABB laabb;
-		Error err = _surface_set_data(p_blend_shapes[i], format & ~ARRAY_FORMAT_INDEX, offsets, total_elem_size, vertex_array_shape, array_len, noindex, 0, laabb, bone_aabb);
+		Error err2 = _surface_set_data(p_blend_shapes[i], format & ~ARRAY_FORMAT_INDEX, offsets, total_elem_size, vertex_array_shape, array_len, noindex, 0, laabb, bone_aabb);
 		aabb.merge_with(laabb);
-		if (err) {
+		if (err2) {
 			ERR_EXPLAIN("Invalid blend shape array format for surface");
-			ERR_FAIL_COND(err != OK);
+			ERR_FAIL_COND(err2 != OK);
 		}
 
 		blend_shape_data.push_back(vertex_array_shape);
@@ -1780,6 +1780,7 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("light_set_negative", "light", "enable"), &VisualServer::light_set_negative);
 	ClassDB::bind_method(D_METHOD("light_set_cull_mask", "light", "mask"), &VisualServer::light_set_cull_mask);
 	ClassDB::bind_method(D_METHOD("light_set_reverse_cull_face_mode", "light", "enabled"), &VisualServer::light_set_reverse_cull_face_mode);
+	ClassDB::bind_method(D_METHOD("light_set_use_gi", "light", "enabled"), &VisualServer::light_set_use_gi);
 
 	ClassDB::bind_method(D_METHOD("light_omni_set_shadow_mode", "light", "mode"), &VisualServer::light_omni_set_shadow_mode);
 	ClassDB::bind_method(D_METHOD("light_omni_set_shadow_detail", "light", "detail"), &VisualServer::light_omni_set_shadow_detail);
@@ -1863,6 +1864,7 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("camera_create"), &VisualServer::camera_create);
 	ClassDB::bind_method(D_METHOD("camera_set_perspective", "camera", "fovy_degrees", "z_near", "z_far"), &VisualServer::camera_set_perspective);
 	ClassDB::bind_method(D_METHOD("camera_set_orthogonal", "camera", "size", "z_near", "z_far"), &VisualServer::camera_set_orthogonal);
+	ClassDB::bind_method(D_METHOD("camera_set_frustum", "camera", "size", "offset", "z_near", "z_far"), &VisualServer::camera_set_frustum);
 	ClassDB::bind_method(D_METHOD("camera_set_transform", "camera", "transform"), &VisualServer::camera_set_transform);
 	ClassDB::bind_method(D_METHOD("camera_set_cull_mask", "camera", "layers"), &VisualServer::camera_set_cull_mask);
 	ClassDB::bind_method(D_METHOD("camera_set_environment", "camera", "env"), &VisualServer::camera_set_environment);
@@ -1874,6 +1876,7 @@ void VisualServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("viewport_set_active", "viewport", "active"), &VisualServer::viewport_set_active);
 	ClassDB::bind_method(D_METHOD("viewport_set_parent_viewport", "viewport", "parent_viewport"), &VisualServer::viewport_set_parent_viewport);
 	ClassDB::bind_method(D_METHOD("viewport_attach_to_screen", "viewport", "rect", "screen"), &VisualServer::viewport_attach_to_screen, DEFVAL(Rect2()), DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("viewport_set_render_direct_to_screen", "viewport", "enabled"), &VisualServer::viewport_set_render_direct_to_screen);
 	ClassDB::bind_method(D_METHOD("viewport_detach", "viewport"), &VisualServer::viewport_detach);
 	ClassDB::bind_method(D_METHOD("viewport_set_update_mode", "viewport", "update_mode"), &VisualServer::viewport_set_update_mode);
 	ClassDB::bind_method(D_METHOD("viewport_set_vflip", "viewport", "enabled"), &VisualServer::viewport_set_vflip);
@@ -2368,11 +2371,11 @@ VisualServer::VisualServer() {
 	//ERR_FAIL_COND(singleton);
 	singleton = this;
 
-	GLOBAL_DEF("rendering/vram_compression/import_bptc", false);
-	GLOBAL_DEF("rendering/vram_compression/import_s3tc", true);
-	GLOBAL_DEF("rendering/vram_compression/import_etc", false);
-	GLOBAL_DEF("rendering/vram_compression/import_etc2", true);
-	GLOBAL_DEF("rendering/vram_compression/import_pvrtc", false);
+	GLOBAL_DEF_RST("rendering/vram_compression/import_bptc", false);
+	GLOBAL_DEF_RST("rendering/vram_compression/import_s3tc", true);
+	GLOBAL_DEF_RST("rendering/vram_compression/import_etc", false);
+	GLOBAL_DEF_RST("rendering/vram_compression/import_etc2", true);
+	GLOBAL_DEF_RST("rendering/vram_compression/import_pvrtc", false);
 
 	GLOBAL_DEF("rendering/quality/directional_shadow/size", 4096);
 	GLOBAL_DEF("rendering/quality/directional_shadow/size.mobile", 2048);

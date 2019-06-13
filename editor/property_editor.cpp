@@ -310,7 +310,8 @@ void CustomPropertyEditor::_menu_option(int p_which) {
 			}
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -905,8 +906,8 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 					List<StringName> inheritors;
 					ClassDB::get_inheriters_from_class(base.strip_edges(), &inheritors);
 
-					for (int i = 0; i < custom_resources.size(); i++) {
-						inheritors.push_back(custom_resources[i].name);
+					for (int j = 0; j < custom_resources.size(); j++) {
+						inheritors.push_back(custom_resources[j].name);
 					}
 
 					List<StringName>::Element *E = inheritors.front();
@@ -915,17 +916,17 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 						E = E->next();
 					}
 
-					for (Set<String>::Element *E = valid_inheritors.front(); E; E = E->next()) {
-						String t = E->get();
+					for (Set<String>::Element *j = valid_inheritors.front(); j; j = j->next()) {
+						String t = j->get();
 
 						bool is_custom_resource = false;
 						Ref<Texture> icon;
 						if (!custom_resources.empty()) {
-							for (int i = 0; i < custom_resources.size(); i++) {
-								if (custom_resources[i].name == t) {
+							for (int k = 0; k < custom_resources.size(); k++) {
+								if (custom_resources[k].name == t) {
 									is_custom_resource = true;
-									if (custom_resources[i].icon.is_valid())
-										icon = custom_resources[i].icon;
+									if (custom_resources[k].icon.is_valid())
+										icon = custom_resources[k].icon;
 									break;
 								}
 							}
@@ -1049,7 +1050,8 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 		case Variant::POOL_COLOR_ARRAY: {
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	updating = false;
@@ -1091,7 +1093,8 @@ void CustomPropertyEditor::_file_selected(String p_file) {
 			emit_signal("variant_changed");
 			hide();
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -1432,7 +1435,8 @@ void CustomPropertyEditor::_action_pressed(int p_which) {
 
 		} break;
 
-		default: {};
+		default: {
+		};
 	}
 }
 
@@ -1699,7 +1703,8 @@ void CustomPropertyEditor::_modified(String p_string) {
 		case Variant::POOL_COLOR_ARRAY: {
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	updating = false;
@@ -1753,7 +1758,8 @@ void CustomPropertyEditor::_focus_enter() {
 				}
 			}
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -1774,7 +1780,8 @@ void CustomPropertyEditor::_focus_exit() {
 				value_editor[i]->select(0, 0);
 			}
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 

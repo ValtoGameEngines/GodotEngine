@@ -34,17 +34,17 @@
 #include "pluginscript_instance.h"
 #include "pluginscript_script.h"
 
-#if DEBUG_ENABLED
+#ifdef DEBUG_ENABLED
 #define __ASSERT_SCRIPT_REASON "Cannot retrieve pluginscript class for this script, is you code correct ?"
 #define ASSERT_SCRIPT_VALID()                \
 	{                                        \
 		ERR_EXPLAIN(__ASSERT_SCRIPT_REASON); \
-		ERR_FAIL_COND(!can_instance())       \
+		ERR_FAIL_COND(!can_instance());      \
 	}
-#define ASSERT_SCRIPT_VALID_V(ret)            \
-	{                                         \
-		ERR_EXPLAIN(__ASSERT_SCRIPT_REASON);  \
-		ERR_FAIL_COND_V(!can_instance(), ret) \
+#define ASSERT_SCRIPT_VALID_V(ret)             \
+	{                                          \
+		ERR_EXPLAIN(__ASSERT_SCRIPT_REASON);   \
+		ERR_FAIL_COND_V(!can_instance(), ret); \
 	}
 #else
 #define ASSERT_SCRIPT_VALID()
@@ -77,7 +77,7 @@ PluginScriptInstance *PluginScript::_create_instance(const Variant **p_args, int
 	// There is currently no way to get the constructor function name of the script.
 	// instance->call("__init__", p_args, p_argcount, r_error);
 	if (p_argcount > 0) {
-		WARN_PRINT("PluginScript doesn't support arguments in the constructor")
+		WARN_PRINT("PluginScript doesn't support arguments in the constructor");
 	}
 
 	return instance;

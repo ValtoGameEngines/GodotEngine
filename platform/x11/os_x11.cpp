@@ -243,8 +243,37 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 // maybe contextgl wants to be in charge of creating the window
 #if defined(OPENGL_ENABLED)
 	if (getenv("DRI_PRIME") == NULL) {
-		print_verbose("Detecting GPUs, set DRI_PRIME in the environment to override GPU detection logic.");
-		int use_prime = detect_prime();
+		int use_prime = -1;
+
+		if (getenv("PRIMUS_DISPLAY") ||
+				getenv("PRIMUS_libGLd") ||
+				getenv("PRIMUS_libGLa") ||
+				getenv("PRIMUS_libGL") ||
+				getenv("PRIMUS_LOAD_GLOBAL") ||
+				getenv("BUMBLEBEE_SOCKET")) {
+
+			print_verbose("Optirun/primusrun detected. Skipping GPU detection");
+			use_prime = 0;
+		}
+
+		if (getenv("LD_LIBRARY_PATH")) {
+			String ld_library_path(getenv("LD_LIBRARY_PATH"));
+			Vector<String> libraries = ld_library_path.split(":");
+
+			for (int i = 0; i < libraries.size(); ++i) {
+				if (FileAccess::exists(libraries[i] + "/libGL.so.1") ||
+						FileAccess::exists(libraries[i] + "/libGL.so")) {
+
+					print_verbose("Custom libGL override detected. Skipping GPU detection");
+					use_prime = 0;
+				}
+			}
+		}
+
+		if (use_prime == -1) {
+			print_verbose("Detecting GPUs, set DRI_PRIME in the environment to override GPU detection logic.");
+			use_prime = detect_prime();
+		}
 
 		if (use_prime) {
 			print_line("Found discrete GPU, setting DRI_PRIME=1 to use it.");
@@ -270,7 +299,7 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 			memdelete(context_gl);
 			context_gl = NULL;
 
-			if (GLOBAL_GET("rendering/quality/driver/driver_fallback") == "Best" || editor) {
+			if (GLOBAL_GET("rendering/quality/driver/fallback_to_gles2") || editor) {
 				if (p_video_driver == VIDEO_DRIVER_GLES2) {
 					gl_initialization_error = true;
 					break;
@@ -292,7 +321,7 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 				RasterizerGLES3::make_current();
 				break;
 			} else {
-				if (GLOBAL_GET("rendering/quality/driver/driver_fallback") == "Best" || editor) {
+				if (GLOBAL_GET("rendering/quality/driver/fallback_to_gles2") || editor) {
 					p_video_driver = VIDEO_DRIVER_GLES2;
 					opengl_api_type = ContextGL_X11::GLES_2_0_COMPATIBLE;
 					continue;
@@ -474,55 +503,57 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 
 	current_cursor = CURSOR_ARROW;
 
-	if (cursor_theme) {
-		for (int i = 0; i < CURSOR_MAX; i++) {
+	for (int i = 0; i < CURSOR_MAX; i++) {
 
-			static const char *cursor_file[] = {
-				"left_ptr",
-				"xterm",
-				"hand2",
-				"cross",
-				"watch",
-				"left_ptr_watch",
-				"fleur",
-				"hand1",
-				"X_cursor",
-				"sb_v_double_arrow",
-				"sb_h_double_arrow",
-				"size_bdiag",
-				"size_fdiag",
-				"hand1",
-				"sb_v_double_arrow",
-				"sb_h_double_arrow",
-				"question_arrow"
-			};
+		static const char *cursor_file[] = {
+			"left_ptr",
+			"xterm",
+			"hand2",
+			"cross",
+			"watch",
+			"left_ptr_watch",
+			"fleur",
+			"hand1",
+			"X_cursor",
+			"sb_v_double_arrow",
+			"sb_h_double_arrow",
+			"size_bdiag",
+			"size_fdiag",
+			"hand1",
+			"sb_v_double_arrow",
+			"sb_h_double_arrow",
+			"question_arrow"
+		};
 
-			img[i] = XcursorLibraryLoadImage(cursor_file[i], cursor_theme, cursor_size);
-			if (img[i]) {
-				cursors[i] = XcursorImageLoadCursor(x11_display, img[i]);
-			} else {
-				print_verbose("Failed loading custom cursor: " + String(cursor_file[i]));
-			}
+		img[i] = XcursorLibraryLoadImage(cursor_file[i], cursor_theme, cursor_size);
+		if (img[i]) {
+			cursors[i] = XcursorImageLoadCursor(x11_display, img[i]);
+		} else {
+			print_verbose("Failed loading custom cursor: " + String(cursor_file[i]));
 		}
 	}
 
 	{
-		Pixmap cursormask;
-		XGCValues xgc;
-		GC gc;
-		XColor col;
-		Cursor cursor;
+		// Creating an empty/transparent cursor
 
-		cursormask = XCreatePixmap(x11_display, RootWindow(x11_display, DefaultScreen(x11_display)), 1, 1, 1);
+		// Create 1x1 bitmap
+		Pixmap cursormask = XCreatePixmap(x11_display,
+				RootWindow(x11_display, DefaultScreen(x11_display)), 1, 1, 1);
+
+		// Fill with zero
+		XGCValues xgc;
 		xgc.function = GXclear;
-		gc = XCreateGC(x11_display, cursormask, GCFunction, &xgc);
+		GC gc = XCreateGC(x11_display, cursormask, GCFunction, &xgc);
 		XFillRectangle(x11_display, cursormask, gc, 0, 0, 1, 1);
-		col.pixel = 0;
-		col.red = 0;
-		col.flags = 4;
-		cursor = XCreatePixmapCursor(x11_display,
-				cursormask, cursormask,
+
+		// Color value doesn't matter. Mask zero means no foreground or background will be drawn
+		XColor col = {};
+
+		Cursor cursor = XCreatePixmapCursor(x11_display,
+				cursormask, // source (using cursor mask as placeholder, since it'll all be ignored)
+				cursormask, // mask
 				&col, &col, 0, 0);
+
 		XFreePixmap(x11_display, cursormask);
 		XFreeGC(x11_display, gc);
 
@@ -562,7 +593,7 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 
 	power_manager = memnew(PowerX11);
 
-	if (p_desired.layered_splash) {
+	if (p_desired.layered) {
 		set_window_per_pixel_transparency_enabled(true);
 	}
 
@@ -986,12 +1017,12 @@ void OS_X11::set_wm_fullscreen(bool p_enabled) {
 		XFree(xsh);
 	}
 
-	if (!p_enabled && !get_borderless_window()) {
-		// put decorations back if the window wasn't suppoesed to be borderless
+	if (!p_enabled) {
+		// put back or remove decorations according to the last set borderless state
 		Hints hints;
 		Atom property;
 		hints.flags = 2;
-		hints.decorations = 1;
+		hints.decorations = current_videomode.borderless_window ? 0 : 1;
 		property = XInternAtom(x11_display, "_MOTIF_WM_HINTS", True);
 		XChangeProperty(x11_display, x11_window, property, property, 32, PropModeReplace, (unsigned char *)&hints, 5);
 	}
@@ -1136,7 +1167,7 @@ int OS_X11::get_screen_dpi(int p_screen) const {
 	int height_mm = DisplayHeightMM(x11_display, p_screen);
 	double xdpi = (width_mm ? sc.width / (double)width_mm * 25.4 : 0);
 	double ydpi = (height_mm ? sc.height / (double)height_mm * 25.4 : 0);
-	if (xdpi || xdpi)
+	if (xdpi || ydpi)
 		return (xdpi + ydpi) / (xdpi && ydpi ? 2 : 1);
 
 	//could not get dpi
@@ -1147,15 +1178,33 @@ Point2 OS_X11::get_window_position() const {
 	int x, y;
 	Window child;
 	XTranslateCoordinates(x11_display, x11_window, DefaultRootWindow(x11_display), 0, 0, &x, &y, &child);
-
-	int screen = get_current_screen();
-	Point2i screen_position = get_screen_position(screen);
-
-	return Point2i(x - screen_position.x, y - screen_position.y);
+	return Point2i(x, y);
 }
 
 void OS_X11::set_window_position(const Point2 &p_position) {
-	XMoveWindow(x11_display, x11_window, p_position.x, p_position.y);
+	int x = 0;
+	int y = 0;
+	if (get_borderless_window() == false) {
+		//exclude window decorations
+		XSync(x11_display, False);
+		Atom prop = XInternAtom(x11_display, "_NET_FRAME_EXTENTS", True);
+		if (prop != None) {
+			Atom type;
+			int format;
+			unsigned long len;
+			unsigned long remaining;
+			unsigned char *data = NULL;
+			if (XGetWindowProperty(x11_display, x11_window, prop, 0, 4, False, AnyPropertyType, &type, &format, &len, &remaining, &data) == Success) {
+				if (format == 32 && len == 4) {
+					long *extents = (long *)data;
+					x = extents[0];
+					y = extents[2];
+				}
+				XFree(data);
+			}
+		}
+	}
+	XMoveWindow(x11_display, x11_window, p_position.x - x, p_position.y - y);
 	update_real_mouse_position();
 }
 
@@ -1172,15 +1221,20 @@ Size2 OS_X11::get_real_window_size() const {
 	int w = xwa.width;
 	int h = xwa.height;
 	Atom prop = XInternAtom(x11_display, "_NET_FRAME_EXTENTS", True);
-	Atom type;
-	int format;
-	unsigned long len;
-	unsigned long remaining;
-	unsigned char *data = NULL;
-	if (XGetWindowProperty(x11_display, x11_window, prop, 0, 4, False, AnyPropertyType, &type, &format, &len, &remaining, &data) == Success) {
-		long *extents = (long *)data;
-		w += extents[0] + extents[1]; // left, right
-		h += extents[2] + extents[3]; // top, bottom
+	if (prop != None) {
+		Atom type;
+		int format;
+		unsigned long len;
+		unsigned long remaining;
+		unsigned char *data = NULL;
+		if (XGetWindowProperty(x11_display, x11_window, prop, 0, 4, False, AnyPropertyType, &type, &format, &len, &remaining, &data) == Success) {
+			if (format == 32 && len == 4) {
+				long *extents = (long *)data;
+				w += extents[0] + extents[1]; // left, right
+				h += extents[2] + extents[3]; // top, bottom
+			}
+			XFree(data);
+		}
 	}
 	return Size2(w, h);
 }
@@ -1477,7 +1531,7 @@ bool OS_X11::is_window_always_on_top() const {
 
 void OS_X11::set_borderless_window(bool p_borderless) {
 
-	if (current_videomode.borderless_window == p_borderless)
+	if (get_borderless_window() == p_borderless)
 		return;
 
 	if (!p_borderless && layered_window)
@@ -1497,7 +1551,24 @@ void OS_X11::set_borderless_window(bool p_borderless) {
 }
 
 bool OS_X11::get_borderless_window() {
-	return current_videomode.borderless_window;
+
+	bool borderless = current_videomode.borderless_window;
+	Atom prop = XInternAtom(x11_display, "_MOTIF_WM_HINTS", True);
+	if (prop != None) {
+
+		Atom type;
+		int format;
+		unsigned long len;
+		unsigned long remaining;
+		unsigned char *data = NULL;
+		if (XGetWindowProperty(x11_display, x11_window, prop, 0, sizeof(Hints), False, AnyPropertyType, &type, &format, &len, &remaining, &data) == Success) {
+			if (data && (format == 32) && (len >= 5)) {
+				borderless = !((Hints *)data)->decorations;
+			}
+			XFree(data);
+		}
+	}
+	return borderless;
 }
 
 void OS_X11::request_attention() {
@@ -1631,7 +1702,7 @@ void OS_X11::handle_key_event(XKeyEvent *p_event, bool p_echo) {
 					k->set_shift(true);
 				}
 
-				input->parse_input_event(k);
+				input->accumulate_input_event(k);
 			}
 			return;
 		}
@@ -1714,7 +1785,7 @@ void OS_X11::handle_key_event(XKeyEvent *p_event, bool p_echo) {
 			// is correct, but the xorg developers are
 			// not very helpful today.
 
-			::Time tresh = ABS(peek_event.xkey.time - xkeyevent->time);
+			::Time tresh = ABSDIFF(peek_event.xkey.time, xkeyevent->time);
 			if (peek_event.type == KeyPress && tresh < 5) {
 				KeySym rk;
 				XLookupString((XKeyEvent *)&peek_event, str, 256, &rk, NULL);
@@ -1775,7 +1846,7 @@ void OS_X11::handle_key_event(XKeyEvent *p_event, bool p_echo) {
 	}
 
 	//printf("key: %x\n",k->get_scancode());
-	input->parse_input_event(k);
+	input->accumulate_input_event(k);
 }
 
 struct Property {
@@ -1962,12 +2033,12 @@ void OS_X11::process_xevents() {
 								// in a spurious mouse motion event being sent to Godot; remember it to be able to filter it out
 								xi.mouse_pos_to_filter = pos;
 							}
-							input->parse_input_event(st);
+							input->accumulate_input_event(st);
 						} else {
 							if (!xi.state.has(index)) // Defensive
 								break;
 							xi.state.erase(index);
-							input->parse_input_event(st);
+							input->accumulate_input_event(st);
 						}
 					} break;
 
@@ -1985,7 +2056,7 @@ void OS_X11::process_xevents() {
 							sd->set_index(index);
 							sd->set_position(pos);
 							sd->set_relative(pos - curr_pos_elem->value());
-							input->parse_input_event(sd);
+							input->accumulate_input_event(sd);
 
 							curr_pos_elem->value() = pos;
 						}
@@ -2012,15 +2083,11 @@ void OS_X11::process_xevents() {
 			case LeaveNotify: {
 				if (main_loop && !mouse_mode_grab)
 					main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_EXIT);
-				if (input)
-					input->set_mouse_in_window(false);
 
 			} break;
 			case EnterNotify: {
 				if (main_loop && !mouse_mode_grab)
 					main_loop->notification(MainLoop::NOTIFICATION_WM_MOUSE_ENTER);
-				if (input)
-					input->set_mouse_in_window(true);
 			} break;
 			case FocusIn:
 				minimized = false;
@@ -2051,7 +2118,9 @@ void OS_X11::process_xevents() {
 
 			case FocusOut:
 				window_has_focus = false;
+				input->release_pressed_events();
 				main_loop->notification(MainLoop::NOTIFICATION_WM_FOCUS_OUT);
+
 				if (mouse_mode_grab) {
 					//dear X11, I try, I really try, but you never work, you do whathever you want.
 					if (mouse_mode == MOUSE_MODE_CAPTURED) {
@@ -2073,7 +2142,7 @@ void OS_X11::process_xevents() {
 					st.instance();
 					st->set_index(E->key());
 					st->set_position(E->get());
-					input->parse_input_event(st);
+					input->accumulate_input_event(st);
 				}
 				xi.state.clear();
 #endif
@@ -2134,7 +2203,7 @@ void OS_X11::process_xevents() {
 					}
 				}
 
-				input->parse_input_event(mb);
+				input->accumulate_input_event(mb);
 
 			} break;
 			case MotionNotify: {
@@ -2244,7 +2313,7 @@ void OS_X11::process_xevents() {
 				// this is so that the relative motion doesn't get messed up
 				// after we regain focus.
 				if (window_has_focus || !mouse_mode_grab)
-					input->parse_input_event(mm);
+					input->accumulate_input_event(mm);
 
 			} break;
 			case KeyPress:
@@ -2326,7 +2395,7 @@ void OS_X11::process_xevents() {
 
 					Vector<String> files = String((char *)p.data).split("\n", false);
 					for (int i = 0; i < files.size(); i++) {
-						files.write[i] = files[i].replace("file://", "").replace("%20", " ").strip_escapes();
+						files.write[i] = files[i].replace("file://", "").http_unescape().strip_edges();
 					}
 					main_loop->drop_files(files);
 
@@ -2428,6 +2497,8 @@ void OS_X11::process_xevents() {
 		printf("Win: %d,%d\n", win_x, win_y);
 		*/
 	}
+
+	input->flush_accumulated_events();
 }
 
 MainLoop *OS_X11::get_main_loop() const {
@@ -2542,7 +2613,7 @@ String OS_X11::get_clipboard() const {
 	return ret;
 }
 
-String OS_X11::get_name() {
+String OS_X11::get_name() const {
 
 	return "X11";
 }
@@ -2564,7 +2635,7 @@ Error OS_X11::shell_open(String p_uri) {
 
 bool OS_X11::_check_internal_feature_support(const String &p_feature) {
 
-	return p_feature == "pc" || p_feature == "s3tc" || p_feature == "bptc";
+	return p_feature == "pc";
 }
 
 String OS_X11::get_config_path() const {
@@ -2689,6 +2760,11 @@ void OS_X11::set_cursor_shape(CursorShape p_shape) {
 	}
 
 	current_cursor = p_shape;
+}
+
+OS::CursorShape OS_X11::get_cursor_shape() const {
+
+	return current_cursor;
 }
 
 void OS_X11::set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, const Vector2 &p_hotspot) {
@@ -3005,20 +3081,36 @@ bool OS_X11::is_vsync_enabled() const {
 void OS_X11::set_context(int p_context) {
 
 	XClassHint *classHint = XAllocClassHint();
+
 	if (classHint) {
 
-		char *wm_class = (char *)"Godot";
-		if (p_context == CONTEXT_EDITOR)
-			classHint->res_name = (char *)"Godot_Editor";
-		if (p_context == CONTEXT_PROJECTMAN)
-			classHint->res_name = (char *)"Godot_ProjectList";
-
-		if (p_context == CONTEXT_ENGINE) {
-			classHint->res_name = (char *)"Godot_Engine";
-			wm_class = (char *)((String)GLOBAL_GET("application/config/name")).utf8().ptrw();
+		CharString name_str;
+		switch (p_context) {
+			case CONTEXT_EDITOR:
+				name_str = "Godot_Editor";
+				break;
+			case CONTEXT_PROJECTMAN:
+				name_str = "Godot_ProjectList";
+				break;
+			case CONTEXT_ENGINE:
+				name_str = "Godot_Engine";
+				break;
 		}
 
-		classHint->res_class = wm_class;
+		CharString class_str;
+		if (p_context == CONTEXT_ENGINE) {
+			String config_name = GLOBAL_GET("application/config/name");
+			if (config_name.length() == 0) {
+				class_str = "Godot_Engine";
+			} else {
+				class_str = config_name.utf8();
+			}
+		} else {
+			class_str = "Godot";
+		}
+
+		classHint->res_class = class_str.ptrw();
+		classHint->res_name = name_str.ptrw();
 
 		XSetClassHint(x11_display, x11_window, classHint);
 		XFree(classHint);
@@ -3197,6 +3289,8 @@ OS_X11::OS_X11() {
 	AudioDriverManager::add_driver(&driver_alsa);
 #endif
 
+	xi.opcode = 0;
+	xi.last_relative_time = 0;
 	layered_window = false;
 	minimized = false;
 	xim_style = 0L;

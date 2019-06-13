@@ -65,7 +65,7 @@ void Popup::_notification(int p_what) {
 void Popup::_fix_size() {
 
 	Point2 pos = get_global_position();
-	Size2 size = get_size();
+	Size2 size = get_size() * get_scale();
 	Point2 window_size = get_viewport_rect().size;
 
 	if (pos.x + size.width > window_size.width)
@@ -115,6 +115,18 @@ void Popup::set_as_minsize() {
 	set_size(total_minsize);
 }
 
+void Popup::popup_centered_clamped(const Size2 &p_size, float p_fallback_ratio) {
+
+	Size2 popup_size = p_size;
+	Size2 window_size = get_viewport_rect().size;
+
+	// clamp popup size in each dimension if window size is too small (using fallback ratio)
+	popup_size.x = MIN(window_size.x * p_fallback_ratio, popup_size.x);
+	popup_size.y = MIN(window_size.y * p_fallback_ratio, popup_size.y);
+
+	popup_centered(popup_size);
+}
+
 void Popup::popup_centered_minsize(const Size2 &p_minsize) {
 
 	set_custom_minimum_size(p_minsize);
@@ -124,49 +136,22 @@ void Popup::popup_centered_minsize(const Size2 &p_minsize) {
 
 void Popup::popup_centered(const Size2 &p_size) {
 
-	Point2 window_size = get_viewport_rect().size;
-
-	emit_signal("about_to_show");
 	Rect2 rect;
+	Size2 window_size = get_viewport_rect().size;
 	rect.size = p_size == Size2() ? get_size() : p_size;
-
 	rect.position = ((window_size - rect.size) / 2.0).floor();
-	set_position(rect.position);
-	set_size(rect.size);
 
-	show_modal(exclusive);
-	_fix_size();
-
-	Control *focusable = find_next_valid_focus();
-	if (focusable)
-		focusable->grab_focus();
-
-	_post_popup();
-	notification(NOTIFICATION_POST_POPUP);
-	popped_up = true;
+	popup(rect);
 }
 
 void Popup::popup_centered_ratio(float p_screen_ratio) {
 
-	emit_signal("about_to_show");
-
 	Rect2 rect;
-	Point2 window_size = get_viewport_rect().size;
+	Size2 window_size = get_viewport_rect().size;
 	rect.size = (window_size * p_screen_ratio).floor();
 	rect.position = ((window_size - rect.size) / 2.0).floor();
-	set_position(rect.position);
-	set_size(rect.size);
 
-	show_modal(exclusive);
-	_fix_size();
-
-	Control *focusable = find_next_valid_focus();
-	if (focusable)
-		focusable->grab_focus();
-
-	_post_popup();
-	notification(NOTIFICATION_POST_POPUP);
-	popped_up = true;
+	popup(rect);
 }
 
 void Popup::popup(const Rect2 &p_bounds) {
@@ -206,6 +191,7 @@ void Popup::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("popup_centered", "size"), &Popup::popup_centered, DEFVAL(Size2()));
 	ClassDB::bind_method(D_METHOD("popup_centered_ratio", "ratio"), &Popup::popup_centered_ratio, DEFVAL(0.75));
 	ClassDB::bind_method(D_METHOD("popup_centered_minsize", "minsize"), &Popup::popup_centered_minsize, DEFVAL(Size2()));
+	ClassDB::bind_method(D_METHOD("popup_centered_clamped", "size", "fallback_ratio"), &Popup::popup_centered_clamped, DEFVAL(Size2()), DEFVAL(0.75));
 	ClassDB::bind_method(D_METHOD("popup", "bounds"), &Popup::popup, DEFVAL(Rect2()));
 	ClassDB::bind_method(D_METHOD("set_exclusive", "enable"), &Popup::set_exclusive);
 	ClassDB::bind_method(D_METHOD("is_exclusive"), &Popup::is_exclusive);

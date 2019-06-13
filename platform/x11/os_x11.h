@@ -35,7 +35,7 @@
 #include "core/os/input.h"
 #include "crash_handler_x11.h"
 #include "drivers/alsa/audio_driver_alsa.h"
-#include "drivers/alsamidi/alsa_midi.h"
+#include "drivers/alsamidi/midi_driver_alsamidi.h"
 #include "drivers/pulseaudio/audio_driver_pulseaudio.h"
 #include "drivers/unix/os_unix.h"
 #include "joypad_linux.h"
@@ -216,9 +216,10 @@ protected:
 	bool is_window_maximize_allowed();
 
 public:
-	virtual String get_name();
+	virtual String get_name() const;
 
 	virtual void set_cursor_shape(CursorShape p_shape);
+	virtual CursorShape get_cursor_shape() const;
 	virtual void set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, const Vector2 &p_hotspot);
 
 	void set_mouse_mode(MouseMode p_mode);

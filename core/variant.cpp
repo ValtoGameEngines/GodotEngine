@@ -179,7 +179,8 @@ String Variant::get_type_name(Variant::Type p_type) {
 			return "PoolColorArray";
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	return "";
@@ -403,7 +404,8 @@ bool Variant::can_convert(Variant::Type p_type_from, Variant::Type p_type_to) {
 			valid_types = valid;
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	if (valid_types) {
@@ -649,7 +651,8 @@ bool Variant::can_convert_strict(Variant::Type p_type_from, Variant::Type p_type
 			valid_types = valid;
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	if (valid_types) {
@@ -841,7 +844,8 @@ bool Variant::is_zero() const {
 			return reinterpret_cast<const PoolVector<Color> *>(_data._mem)->size() == 0;
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	return false;
@@ -896,7 +900,9 @@ bool Variant::is_one() const {
 
 		} break;
 
-		default: { return !is_zero(); }
+		default: {
+			return !is_zero();
+		}
 	}
 
 	return false;
@@ -1039,7 +1045,8 @@ void Variant::reference(const Variant &p_variant) {
 			memnew_placement(_data._mem, PoolVector<Color>(*reinterpret_cast<const PoolVector<Color> *>(p_variant._data._mem)));
 
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -1143,7 +1150,8 @@ void Variant::clear() {
 
 			reinterpret_cast<PoolVector<Color> *>(_data._mem)->~PoolVector<Color>();
 		} break;
-		default: {} /* not needed */
+		default: {
+		} /* not needed */
 	}
 
 	type = NIL;
@@ -1407,7 +1415,12 @@ struct _VariantStrPair {
 };
 
 Variant::operator String() const {
+	List<const void *> stack;
 
+	return stringify(stack);
+}
+
+String Variant::stringify(List<const void *> &stack) const {
 	switch (type) {
 
 		case NIL: return "Null";
@@ -1459,6 +1472,12 @@ Variant::operator String() const {
 		case DICTIONARY: {
 
 			const Dictionary &d = *reinterpret_cast<const Dictionary *>(_data._mem);
+			if (stack.find(d.id())) {
+				return "{...}";
+			}
+
+			stack.push_back(d.id());
+
 			//const String *K=NULL;
 			String str("{");
 			List<Variant> keys;
@@ -1469,8 +1488,9 @@ Variant::operator String() const {
 			for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
 
 				_VariantStrPair sp;
-				sp.key = String(E->get());
-				sp.value = d[E->get()];
+				sp.key = E->get().stringify(stack);
+				sp.value = d[E->get()].stringify(stack);
+
 				pairs.push_back(sp);
 			}
 
@@ -1553,12 +1573,19 @@ Variant::operator String() const {
 		case ARRAY: {
 
 			Array arr = operator Array();
+			if (stack.find(arr.id())) {
+				return "[...]";
+			}
+			stack.push_back(arr.id());
+
 			String str("[");
 			for (int i = 0; i < arr.size(); i++) {
 				if (i)
 					str += ", ";
-				str += String(arr[i]);
-			};
+
+				str += arr[i].stringify(stack);
+			}
+
 			str += "]";
 			return str;
 
@@ -1574,7 +1601,7 @@ Variant::operator String() const {
 					};
 				};
 #endif
-				return "[" + _get_obj().obj->get_class() + ":" + itos(_get_obj().obj->get_instance_id()) + "]";
+				return _get_obj().obj->to_string();
 			} else
 				return "[Object:null]";
 
@@ -1823,7 +1850,9 @@ inline DA _convert_array_from_variant(const Variant &p_variant) {
 		case Variant::POOL_COLOR_ARRAY: {
 			return _convert_array<DA, PoolVector<Color> >(p_variant.operator PoolVector<Color>());
 		}
-		default: { return DA(); }
+		default: {
+			return DA();
+		}
 	}
 
 	return DA();
@@ -2642,7 +2671,8 @@ void Variant::operator=(const Variant &p_variant) {
 
 			*reinterpret_cast<PoolVector<Color> *>(_data._mem) = *reinterpret_cast<const PoolVector<Color> *>(p_variant._data._mem);
 		} break;
-		default: {}
+		default: {
+		}
 	}
 }
 
@@ -2816,27 +2846,37 @@ uint32_t Variant::hash() const {
 
 			const PoolVector<uint8_t> &arr = *reinterpret_cast<const PoolVector<uint8_t> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<uint8_t>::Read r = arr.read();
-
-			return hash_djb2_buffer((uint8_t *)&r[0], len);
+			if (likely(len)) {
+				PoolVector<uint8_t>::Read r = arr.read();
+				return hash_djb2_buffer((uint8_t *)&r[0], len);
+			} else {
+				return hash_djb2_one_64(0);
+			}
 
 		} break;
 		case POOL_INT_ARRAY: {
 
 			const PoolVector<int> &arr = *reinterpret_cast<const PoolVector<int> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<int>::Read r = arr.read();
-
-			return hash_djb2_buffer((uint8_t *)&r[0], len * sizeof(int));
+			if (likely(len)) {
+				PoolVector<int>::Read r = arr.read();
+				return hash_djb2_buffer((uint8_t *)&r[0], len * sizeof(int));
+			} else {
+				return hash_djb2_one_64(0);
+			}
 
 		} break;
 		case POOL_REAL_ARRAY: {
 
 			const PoolVector<real_t> &arr = *reinterpret_cast<const PoolVector<real_t> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<real_t>::Read r = arr.read();
 
-			return hash_djb2_buffer((uint8_t *)&r[0], len * sizeof(real_t));
+			if (likely(len)) {
+				PoolVector<real_t>::Read r = arr.read();
+				return hash_djb2_buffer((uint8_t *)&r[0], len * sizeof(real_t));
+			} else {
+				return hash_djb2_one_float(0.0);
+			}
 
 		} break;
 		case POOL_STRING_ARRAY: {
@@ -2844,10 +2884,13 @@ uint32_t Variant::hash() const {
 			uint32_t hash = 5831;
 			const PoolVector<String> &arr = *reinterpret_cast<const PoolVector<String> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<String>::Read r = arr.read();
 
-			for (int i = 0; i < len; i++) {
-				hash = hash_djb2_one_32(r[i].hash(), hash);
+			if (likely(len)) {
+				PoolVector<String>::Read r = arr.read();
+
+				for (int i = 0; i < len; i++) {
+					hash = hash_djb2_one_32(r[i].hash(), hash);
+				}
 			}
 
 			return hash;
@@ -2857,50 +2900,57 @@ uint32_t Variant::hash() const {
 			uint32_t hash = 5831;
 			const PoolVector<Vector2> &arr = *reinterpret_cast<const PoolVector<Vector2> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<Vector2>::Read r = arr.read();
 
-			for (int i = 0; i < len; i++) {
-				hash = hash_djb2_one_float(r[i].x, hash);
-				hash = hash_djb2_one_float(r[i].y, hash);
+			if (likely(len)) {
+				PoolVector<Vector2>::Read r = arr.read();
+
+				for (int i = 0; i < len; i++) {
+					hash = hash_djb2_one_float(r[i].x, hash);
+					hash = hash_djb2_one_float(r[i].y, hash);
+				}
 			}
 
 			return hash;
-
 		} break;
 		case POOL_VECTOR3_ARRAY: {
 
 			uint32_t hash = 5831;
 			const PoolVector<Vector3> &arr = *reinterpret_cast<const PoolVector<Vector3> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<Vector3>::Read r = arr.read();
 
-			for (int i = 0; i < len; i++) {
-				hash = hash_djb2_one_float(r[i].x, hash);
-				hash = hash_djb2_one_float(r[i].y, hash);
-				hash = hash_djb2_one_float(r[i].z, hash);
+			if (likely(len)) {
+				PoolVector<Vector3>::Read r = arr.read();
+
+				for (int i = 0; i < len; i++) {
+					hash = hash_djb2_one_float(r[i].x, hash);
+					hash = hash_djb2_one_float(r[i].y, hash);
+					hash = hash_djb2_one_float(r[i].z, hash);
+				}
 			}
 
 			return hash;
-
 		} break;
 		case POOL_COLOR_ARRAY: {
 
 			uint32_t hash = 5831;
 			const PoolVector<Color> &arr = *reinterpret_cast<const PoolVector<Color> *>(_data._mem);
 			int len = arr.size();
-			PoolVector<Color>::Read r = arr.read();
 
-			for (int i = 0; i < len; i++) {
-				hash = hash_djb2_one_float(r[i].r, hash);
-				hash = hash_djb2_one_float(r[i].g, hash);
-				hash = hash_djb2_one_float(r[i].b, hash);
-				hash = hash_djb2_one_float(r[i].a, hash);
+			if (likely(len)) {
+				PoolVector<Color>::Read r = arr.read();
+
+				for (int i = 0; i < len; i++) {
+					hash = hash_djb2_one_float(r[i].r, hash);
+					hash = hash_djb2_one_float(r[i].g, hash);
+					hash = hash_djb2_one_float(r[i].b, hash);
+					hash = hash_djb2_one_float(r[i].a, hash);
+				}
 			}
 
 			return hash;
-
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	return 0;
@@ -3148,7 +3198,8 @@ bool Variant::is_shared() const {
 		case OBJECT: return true;
 		case ARRAY: return true;
 		case DICTIONARY: return true;
-		default: {}
+		default: {
+		}
 	}
 
 	return false;
@@ -3185,7 +3236,8 @@ Variant Variant::call(const StringName &p_method, VARIANT_ARG_DECLARE) {
 			String err = "Too many arguments for method '" + p_method + "'";
 			ERR_PRINT(err.utf8().get_data());
 		} break;
-		default: {}
+		default: {
+		}
 	}
 
 	return ret;

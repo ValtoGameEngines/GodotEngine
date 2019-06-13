@@ -53,7 +53,7 @@ public:
 
 		PARAM_INITIAL_LINEAR_VELOCITY,
 		PARAM_ANGULAR_VELOCITY,
-		//PARAM_ORBIT_VELOCITY,
+		PARAM_ORBIT_VELOCITY,
 		PARAM_LINEAR_ACCEL,
 		PARAM_RADIAL_ACCEL,
 		PARAM_TANGENTIAL_ACCEL,
@@ -104,6 +104,7 @@ private:
 	float inactive_time;
 	float frame_remainder;
 	int cycle;
+	bool redraw;
 
 	RID multimesh;
 
@@ -177,6 +178,8 @@ private:
 	Mutex *update_mutex;
 
 	void _update_render_thread();
+
+	void _set_redraw(bool p_redraw);
 
 protected:
 	static void _bind_methods();

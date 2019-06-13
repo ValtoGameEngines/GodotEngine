@@ -95,6 +95,7 @@ public:
 		}
 
 		DataType() :
+				kind(UNRESOLVED),
 				has_type(false),
 				is_constant(false),
 				is_meta_type(false),
@@ -148,6 +149,7 @@ public:
 		bool tool;
 		StringName name;
 		bool extends_used;
+		bool classname_used;
 		StringName extends_file;
 		Vector<StringName> extends_class;
 		DataType base_type;
@@ -168,6 +170,7 @@ public:
 			MultiplayerAPI::RPCMode rpc_mode;
 			int usages;
 		};
+
 		struct Constant {
 			Node *expression;
 			DataType type;
@@ -196,6 +199,7 @@ public:
 			tool = false;
 			type = TYPE_CLASS;
 			extends_used = false;
+			classname_used = false;
 			end_line = -1;
 			owner = NULL;
 		}
@@ -219,6 +223,7 @@ public:
 
 		virtual DataType get_datatype() const { return return_type; }
 		virtual void set_datatype(const DataType &p_datatype) { return_type = p_datatype; }
+		int get_required_argument_count() { return arguments.size() - default_values.size(); }
 
 		FunctionNode() {
 			type = TYPE_FUNCTION;
@@ -443,7 +448,6 @@ public:
 			CF_IF,
 			CF_FOR,
 			CF_WHILE,
-			CF_SWITCH,
 			CF_BREAK,
 			CF_CONTINUE,
 			CF_RETURN,
@@ -531,6 +535,8 @@ private:
 	int error_line;
 	int error_column;
 	bool check_types;
+	bool dependencies_only;
+	List<String> dependencies;
 #ifdef DEBUG_ENABLED
 	Set<int> *safe_lines;
 #endif // DEBUG_ENABLED
@@ -632,7 +638,7 @@ public:
 #ifdef DEBUG_ENABLED
 	const List<GDScriptWarning> &get_warnings() const { return warnings; }
 #endif // DEBUG_ENABLED
-	Error parse(const String &p_code, const String &p_base_path = "", bool p_just_validate = false, const String &p_self_path = "", bool p_for_completion = false, Set<int> *r_safe_lines = NULL);
+	Error parse(const String &p_code, const String &p_base_path = "", bool p_just_validate = false, const String &p_self_path = "", bool p_for_completion = false, Set<int> *r_safe_lines = NULL, bool p_dependencies_only = false);
 	Error parse_bytecode(const Vector<uint8_t> &p_bytecode, const String &p_base_path = "", const String &p_self_path = "");
 
 	bool is_tool_script() const;
@@ -650,6 +656,8 @@ public:
 	FunctionNode *get_completion_function();
 	int get_completion_argument_index();
 	int get_completion_identifier_is_function();
+
+	const List<String> &get_dependencies() const { return dependencies; }
 
 	void clear();
 	GDScriptParser();

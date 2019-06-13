@@ -177,6 +177,13 @@ NetSocketPosix::~NetSocketPosix() {
 	close();
 }
 
+// Silent a warning reported in #27594
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wlogical-op"
+#endif
+
 NetSocketPosix::NetError NetSocketPosix::_get_socket_error() {
 #if defined(WINDOWS_ENABLED)
 	int err = WSAGetLastError();
@@ -200,6 +207,10 @@ NetSocketPosix::NetError NetSocketPosix::_get_socket_error() {
 	return ERR_NET_OTHER;
 #endif
 }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 bool NetSocketPosix::_can_use_ip(const IP_Address p_ip, const bool p_for_bind) const {
 
@@ -543,7 +554,7 @@ void NetSocketPosix::set_blocking_enabled(bool p_enabled) {
 
 void NetSocketPosix::set_ipv6_only_enabled(bool p_enabled) {
 	ERR_FAIL_COND(!is_open());
-	// This option is only avaiable in IPv6 sockets.
+	// This option is only available in IPv6 sockets.
 	ERR_FAIL_COND(_ip_type == IP::TYPE_IPV4);
 
 	int par = p_enabled ? 1 : 0;

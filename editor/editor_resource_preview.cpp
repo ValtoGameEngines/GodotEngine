@@ -71,7 +71,21 @@ Ref<Texture> EditorResourcePreviewGenerator::generate_from_path(const String &p_
 	return generate(res, p_size);
 }
 
-bool EditorResourcePreviewGenerator::should_generate_small_preview() const {
+bool EditorResourcePreviewGenerator::generate_small_preview_automatically() const {
+
+	if (get_script_instance() && get_script_instance()->has_method("generate_small_preview_automatically")) {
+		return get_script_instance()->call("generate_small_preview_automatically");
+	}
+
+	return false;
+}
+
+bool EditorResourcePreviewGenerator::can_generate_small_preview() const {
+
+	if (get_script_instance() && get_script_instance()->has_method("can_generate_small_preview")) {
+		return get_script_instance()->call("can_generate_small_preview");
+	}
+
 	return false;
 }
 
@@ -80,6 +94,8 @@ void EditorResourcePreviewGenerator::_bind_methods() {
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::BOOL, "handles", PropertyInfo(Variant::STRING, "type")));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(CLASS_INFO(Texture), "generate", PropertyInfo(Variant::OBJECT, "from", PROPERTY_HINT_RESOURCE_TYPE, "Resource"), PropertyInfo(Variant::VECTOR2, "size")));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(CLASS_INFO(Texture), "generate_from_path", PropertyInfo(Variant::STRING, "path", PROPERTY_HINT_FILE), PropertyInfo(Variant::VECTOR2, "size")));
+	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::BOOL, "generate_small_preview_automatically"));
+	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::BOOL, "can_generate_small_preview"));
 }
 
 EditorResourcePreviewGenerator::EditorResourcePreviewGenerator() {
@@ -154,16 +170,27 @@ void EditorResourcePreview::_generate_preview(Ref<ImageTexture> &r_texture, Ref<
 		}
 		r_texture = generated;
 
-		if (r_texture.is_valid() && preview_generators[i]->should_generate_small_preview()) {
-			int small_thumbnail_size = EditorNode::get_singleton()->get_theme_base()->get_icon("Object", "EditorIcons")->get_width(); // Kind of a workaround to retreive the default icon size
-			small_thumbnail_size *= EDSCALE;
+		int small_thumbnail_size = EditorNode::get_singleton()->get_theme_base()->get_icon("Object", "EditorIcons")->get_width(); // Kind of a workaround to retrieve the default icon size
+		small_thumbnail_size *= EDSCALE;
 
+		if (preview_generators[i]->can_generate_small_preview()) {
+			Ref<Texture> generated_small;
+			if (p_item.resource.is_valid()) {
+				generated_small = preview_generators[i]->generate(p_item.resource, Vector2(small_thumbnail_size, small_thumbnail_size));
+			} else {
+				generated_small = preview_generators[i]->generate_from_path(p_item.path, Vector2(small_thumbnail_size, small_thumbnail_size));
+			}
+			r_small_texture = generated_small;
+		}
+
+		if (!r_small_texture.is_valid() && r_texture.is_valid() && preview_generators[i]->generate_small_preview_automatically()) {
 			Ref<Image> small_image = r_texture->get_data();
 			small_image = small_image->duplicate();
 			small_image->resize(small_thumbnail_size, small_thumbnail_size, Image::INTERPOLATE_CUBIC);
 			r_small_texture.instance();
 			r_small_texture->create_from_image(small_image);
 		}
+
 		break;
 	}
 
@@ -176,7 +203,9 @@ void EditorResourcePreview::_generate_preview(Ref<ImageTexture> &r_texture, Ref<
 			if (has_small_texture) {
 				ResourceSaver::save(cache_base + "_small.png", r_small_texture);
 			}
-			FileAccess *f = FileAccess::open(cache_base + ".txt", FileAccess::WRITE);
+			Error err;
+			FileAccess *f = FileAccess::open(cache_base + ".txt", FileAccess::WRITE, &err);
+			ERR_FAIL_COND(err != OK);
 			f->store_line(itos(thumbnail_size));
 			f->store_line(itos(has_small_texture));
 			f->store_line(itos(FileAccess::get_modified_time(p_item.path)));
@@ -188,6 +217,7 @@ void EditorResourcePreview::_generate_preview(Ref<ImageTexture> &r_texture, Ref<
 
 void EditorResourcePreview::_thread() {
 
+#ifndef SERVER_ENABLED
 	while (!exit) {
 
 		preview_sem->wait();
@@ -313,6 +343,8 @@ void EditorResourcePreview::_thread() {
 			preview_mutex->unlock();
 		}
 	}
+#endif
+	exited = true;
 }
 
 void EditorResourcePreview::queue_edited_resource_preview(const Ref<Resource> &p_res, Object *p_receiver, const StringName &p_receiver_func, const Variant &p_userdata) {
@@ -417,10 +449,19 @@ void EditorResourcePreview::check_for_invalidation(const String &p_path) {
 	}
 }
 
+void EditorResourcePreview::start() {
+	ERR_FAIL_COND(thread);
+	thread = Thread::create(_thread_func, this);
+	exited = false;
+}
 void EditorResourcePreview::stop() {
 	if (thread) {
 		exit = true;
 		preview_sem->post();
+		while (!exited) {
+			OS::get_singleton()->delay_usec(10000);
+			VisualServer::get_singleton()->sync(); //sync pending stuff, as thread may be blocked on visual server
+		}
 		Thread::wait_to_finish(thread);
 		memdelete(thread);
 		thread = NULL;
@@ -428,13 +469,13 @@ void EditorResourcePreview::stop() {
 }
 
 EditorResourcePreview::EditorResourcePreview() {
+	thread = NULL;
 	singleton = this;
 	preview_mutex = Mutex::create();
 	preview_sem = Semaphore::create();
 	order = 0;
 	exit = false;
-
-	thread = Thread::create(_thread_func, this);
+	exited = false;
 }
 
 EditorResourcePreview::~EditorResourcePreview() {
